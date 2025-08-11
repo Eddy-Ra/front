@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Loader2, KeyRound, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { Icons } from '@/components/ui/icons'; // Assurez-vous d'avoir un composant Icons avec l'icône Google
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -12,6 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,91 +28,160 @@ const Login = () => {
         setError('Email ou mot de passe incorrect');
       }
       setIsLoading(false);
-    }, 1000);
+    }, 1500);
+  };
+
+  const handleGoogleLogin = () => {
+    setIsGoogleLoading(true);
+    // Logique de connexion Google ici
+    setTimeout(() => {
+      console.log('Connexion via Google...');
+      setIsGoogleLoading(false);
+      // Redirection ou traitement après la connexion Google
+    }, 1500);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
-      {/* SECTION: Page de connexion - Formulaire principal */}
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary flex items-center justify-center">
-            <Lock className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Auto-prospect</CardTitle>
-          <CardDescription>
-            Connectez-vous à votre espace d'administration
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4 overflow-hidden relative">
+      {/* Background animé avec un dégradé */}
+      <div className="absolute inset-0 z-0 opacity-20 animate-bg-gradient">
+        <div className="absolute inset-0 bg-gradient-primary from-rose-500 via-purple-500 to-cyan-500 blur-3xl opacity-50"></div>
+      </div>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* SECTION: Champ email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@crm.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
-                  required
-                />
-              </div>
+      {/* Conteneur principal de la carte */}
+      <div className="relative z-10 w-full max-w-md">
+        <Card className="w-full bg-zinc-900 border-zinc-800 text-white shadow-2xl backdrop-blur-sm animate-fade-in">
+          <CardHeader className="space-y-4 text-center">
+            <div className="mx-auto h-16 w-16 flex items-center justify-center bg-gradient-primary from-purple-500 to-rose-500 rounded-2xl shadow-lg transform hover:scale-110 transition-transform duration-300">
+              <KeyRound className="h-8 w-8 text-white" />
             </div>
+            <CardTitle className="flex items-center justify-center gap-3 text-4xl font-extrabold tracking-tight">
+              <Brain className="w-10 h-10 text-purple-400" />
+              OmegaBrain
+            </CardTitle>
 
-            {/* SECTION: Champ mot de passe */}
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9 pr-9"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+            <CardDescription className="text-zinc-400 text-base">
+              Connectez-vous à votre espace d'administration
+            </CardDescription>
+          </CardHeader>
 
-            {/* SECTION: Message d'erreur */}
-            {error && (
-              <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
-                <p className="text-sm text-destructive font-medium">{error}</p>
-              </div>
-            )}
-
-            {/* SECTION: Bouton de connexion */}
+          <CardContent className="grid gap-4">
+            {/* Bouton de connexion Google */}
             <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
+              variant="outline"
+              className="w-full bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700 transition-colors duration-200 group relative overflow-hidden"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading || isLoading}
             >
-              {isLoading ? 'Connexion...' : 'Se connecter'}
+              <span className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-10 transition-opacity duration-300"></span>
+              {isGoogleLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connexion avec Google...
+                </>
+              ) : (
+                <>
+                  <Icons.google className="mr-2 h-4 w-4" />
+                  Connexion avec Google
+                </>
+              )}
             </Button>
-          </form>
 
-          {/* SECTION: Informations de test */}
-          <div className="mt-6 p-3 bg-muted rounded-md">
-            <p className="text-sm text-muted-foreground text-center">
-              <strong>Test:</strong> admin@crm.com / admin123
+            {/* Séparateur OR */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-zinc-800" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-zinc-900 px-2 text-zinc-500">
+                  Ou continuer avec
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Champ email */}
+              <div className="space-y-2 animate-slide-in-up">
+                <Label htmlFor="email" className="text-zinc-400">
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Votre email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 bg-zinc-800 border-zinc-700 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors duration-200"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Champ mot de passe */}
+              <div className="space-y-2 animate-slide-in-up delay-100">
+                <Label htmlFor="password" className="text-zinc-400">
+                  Mot de passe
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10 bg-zinc-800 border-zinc-700 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors duration-200"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 h-4 w-4 text-zinc-500 hover:text-white transition-colors duration-200"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Message d'erreur */}
+              {error && (
+                <div className="rounded-md bg-red-900/30 border border-red-700/50 p-3 animate-shake">
+                  <p className="text-sm text-red-400 font-medium">{error}</p>
+                </div>
+              )}
+
+              {/* Bouton de connexion */}
+              <Button
+                type="submit"
+                className="w-full bg-gradient-primary from-purple-600 to-rose-500 text-white font-bold tracking-wide py-6 relative overflow-hidden group hover:shadow-xl transition-all duration-300"
+                disabled={isLoading || isGoogleLoading}
+              >
+                <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                {isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  'Se connecter'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+
+          <CardFooter className="flex-col gap-4">
+            <p className="text-sm text-center text-zinc-400">
+              Vous n'avez pas de compte ?{' '}
+              <a href="#" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
+                Inscrivez-vous
+              </a>
             </p>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Informations de test */}
+            <div className="p-3 w-full bg-zinc-800 rounded-lg border border-zinc-700 text-zinc-400 text-center text-sm">
+              <strong>Test:</strong> <span>admin@crm.com</span> / <span>admin123</span>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 };

@@ -89,7 +89,7 @@ export function DataTable({
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
           {onAdd && (
-            <Button onClick={onAdd} className="gap-2">
+            <Button onClick={onAdd} className="gap-2 border">
               <Plus className="h-4 w-4" />
               Ajouter
             </Button>
@@ -111,7 +111,7 @@ export function DataTable({
           {filters.map((filter) => (
             <DropdownMenu key={filter.key}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
                   <Filter className="h-4 w-4" />
                   {filter.label}
                   <ChevronDown className="h-4 w-4" />

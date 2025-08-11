@@ -144,7 +144,7 @@ const EnvoiMasse = () => {
                 {!isRunning ? (
                   <Button 
                     onClick={handleStartSending} 
-                    className="w-full gap-2"
+                    className="w-full gap-2 border"
                     disabled={currentProgress > 0 && currentProgress < 100}
                   >
                     <Play className="h-4 w-4" />

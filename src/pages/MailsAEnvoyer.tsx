@@ -133,18 +133,18 @@ const MailsAEnvoyer = () => {
       <div className="space-y-6">
         {/* SECTION: Actions principales */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={() => console.log('Nouveau prompt')} className="gap-2">
+          <Button onClick={() => console.log('Nouveau prompt')} className="gap-2 border-[#8675E1] border-1">
             <Plus className="h-4 w-4" />
             Nouveau prompt
           </Button>
           
-          <Button onClick={handleGenerateAIMails} className="gap-2 bg-gradient-primary">
+          <Button onClick={handleGenerateAIMails} className="gap-2 bg-gradient-primary border-[#8675E1] border-1">
             <Bot className="h-4 w-4" />
             Générer avec IA
           </Button>
           
           <div className="ml-auto flex gap-2">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
               Valider le groupe
               <Check className="h-4 w-4" />
             </Button>
@@ -171,10 +171,10 @@ const MailsAEnvoyer = () => {
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>Utilisé {prompt.utilise} fois</span>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" className="h-6 px-2">
+                        <Button size="sm" variant="outline" className="h-6 px-2 border">
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button size="sm" variant="outline" className="h-6 px-2">
+                        <Button size="sm" variant="outline" className="h-6 px-2 border">
                           <Eye className="h-3 w-3" />
                         </Button>
                       </div>
@@ -224,7 +224,7 @@ const MailsAEnvoyer = () => {
                             size="sm" 
                             variant="outline" 
                             onClick={() => handleViewMail(mail)}
-                            className="h-6 px-2"
+                            className="h-6 px-2 border"
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
@@ -235,7 +235,7 @@ const MailsAEnvoyer = () => {
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => handleValidateMail(mail)}
-                                className="h-6 px-2 text-success hover:text-success"
+                                className="h-6 px-2 border"
                               >
                                 <Check className="h-3 w-3" />
                               </Button>
@@ -243,7 +243,7 @@ const MailsAEnvoyer = () => {
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => handleRejectMail(mail)}
-                                className="h-6 px-2 text-destructive hover:text-destructive"
+                                className="h-6 px-2 border"
                               >
                                 <X className="h-3 w-3" />
                               </Button>

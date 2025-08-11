@@ -1,19 +1,22 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Mail, 
-  Send, 
-  Reply, 
-  RefreshCw, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  Mail,
+  Send,
+  Reply,
+  RefreshCw,
+  Settings,
   LogOut,
-  Bell
+  Bell,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import img from '../../../public/assets/img/johndoe.jpg';
 
 const navigationItems = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -38,9 +41,13 @@ export function Sidebar({ className }: SidebarProps) {
       className
     )}>
       {/* Logo */}
-      <div className="flex h-header items-center justify-center border-b border-border/50 px-6 bg-gradient-primary/5">
-        <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins animate-glow">Auto-prospect</h1>
+      <div className="flex h-header items-center justify-center border-b border-border/50 px-2 bg-gradient-primary/5">
+        <h1 className="flex items-center gap-2 text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
+          <Brain className="text-purple-400 w-6 h-6" />
+          OmegaBrain
+        </h1>
       </div>
+
 
       {/* Navigation */}
       <nav className="flex-1 space-y-2 p-4">
@@ -59,12 +66,12 @@ export function Sidebar({ className }: SidebarProps) {
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <item.icon className={cn(
-                "h-5 w-5 transition-all duration-300",
-                isActive 
-                  ? "text-primary-foreground animate-float" 
-                  : "text-muted-foreground group-hover:text-primary group-hover:scale-110"
+                "h-5 w-5 transition-all duration-300 ease-in-out",
+                isActive
+                  ? "text-primary-foreground"
+                  : "text-muted-foreground group-hover:text-primary"
               )} />
-              <span className="group-hover:translate-x-1 transition-transform duration-300">
+              <span className="transition-colors duration-300 ease-in-out">
                 {item.name}
               </span>
             </Link>
@@ -73,29 +80,35 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User section */}
+      {/* User section */}
       <div className="border-t border-border/50 p-4 bg-gradient-glass/30">
         <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-gradient-glass backdrop-blur-sm border border-white/10 hover-lift">
-          <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg animate-glow">
-            <span className="text-sm font-semibold text-primary-foreground font-poppins">A</span>
+          <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg animate-glow overflow-hidden">
+            <img
+              src={img}
+              alt="Avatar utilisateur"
+              className="h-full w-full object-cover rounded-full"
+            />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold font-poppins">Admin</p>
+            <p className="text-sm font-semibold font-poppins">John Doe</p>
             <p className="text-xs text-muted-foreground">admin@crm.com</p>
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="w-full justify-start gap-2 mb-2"
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 mb-2 border-[#8675E1] border-2 text-[#8675E1]"
           onClick={() => window.location.href = '/login'}
         >
           <LogOut className="h-4 w-4" />
           Déconnexion
         </Button>
-        <div className="flex justify-center">
+        {/* <div className="flex justify-center">
           <ThemeToggle />
-        </div>
+        </div> */}
       </div>
+
     </aside>
   );
 }
@@ -112,8 +125,8 @@ export function Header({ title, className }: HeaderProps) {
       className
     )}>
       <div className="flex h-full items-center justify-between px-6">
-        <h2 className="text-2xl font-bold text-foreground bg-gradient-primary bg-clip-text text-transparent font-poppins animate-fade-in">{title}</h2>
-        
+        <h2 className="text-xl font-bold text-muted-foreground font-poppins animate-fade-in">{title}</h2>
+
         <div className="flex items-center gap-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <Button variant="glass" size="sm" className="gap-2 hover-glow">
             <Bell className="h-4 w-4" />

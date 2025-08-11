@@ -107,17 +107,17 @@ const Contacts = () => {
       <div className="space-y-6">
         {/* SECTION: Actions principales */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={handleAddContact} className="gap-2">
+          <Button onClick={handleAddContact} variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
             <Plus className="h-4 w-4" />
             Ajouter un contact
           </Button>
           
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
             <Upload className="h-4 w-4" />
             Importer CSV
           </Button>
           
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2 border border-[#8675E1] border-2 text-[#8675E1]">
             <Download className="h-4 w-4" />
             Exporter
           </Button>
@@ -125,7 +125,7 @@ const Contacts = () => {
           <Button 
             variant="outline" 
             onClick={handleSyncSources} 
-            className="gap-2 ml-auto"
+            className="gap-2 ml-auto border-[#8675E1] border-2 text-[#8675E1]"
           >
             <RefreshCw className="h-4 w-4" />
             Synchroniser toutes les sources
@@ -150,7 +150,7 @@ const Contacts = () => {
                   </div>
                 ))}
                 
-                <Button variant="outline" size="sm" className="w-full mt-4">
+                <Button variant="outline" size="sm" className="w-full mt-4 border-[#8675E1] border-2 text-[#8675E1]">
                   <Plus className="h-4 w-4 mr-2" />
                   Nouvelle catégorie
                 </Button>

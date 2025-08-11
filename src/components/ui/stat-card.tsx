@@ -45,13 +45,13 @@ export function StatCard({
                   ? "text-success-foreground bg-gradient-success/20 border border-success/30" 
                   : "text-destructive-foreground bg-destructive/20 border border-destructive/30"
               )}>
-                <span>{trend.isPositive ? "+" : ""}{trend.value}%</span>
+                <span className="text-foreground">{trend.isPositive ? "+" : ""}{trend.value}%</span>
                 <span className="text-muted-foreground">vs mois dernier</span>
               </div>
             )}
           </div>
           {Icon && (
-            <div className="rounded-xl bg-gradient-primary/20 backdrop-blur-sm p-4 border border-white/20 hover:scale-110 transition-transform duration-300 animate-float">
+            <div className="rounded-xl bg-gradient-primary/20 backdrop-blur-sm p-4 border border-white/20">
               <Icon className="h-7 w-7 text-primary" />
             </div>
           )}

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import img from '../../public/assets/img/johndoe.jpg';
 
 const Parametres = () => {
   // SECTION: Données mockées des utilisateurs
@@ -44,7 +45,7 @@ const Parametres = () => {
   // SECTION: Paramètres généraux
   const [parametresGeneraux, setParametresGeneraux] = useState({
     emailDefaut: 'crm@entreprise.com',
-    nomExpediteur: 'Auto-prospect',
+    nomExpediteur: 'CRM Pro',
     frequenceEnvoi: 50,
     delaiEntreLots: 5,
     autoValidation: false,
@@ -116,7 +117,7 @@ const Parametres = () => {
               {/* Actions principales */}
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Gestion des Utilisateurs</h3>
-                <Button onClick={() => setShowAddUser(true)} className="gap-2">
+                <Button onClick={() => setShowAddUser(true)} className="gap-2 border-1">
                   <Plus className="h-4 w-4" />
                   Ajouter un utilisateur
                 </Button>
@@ -135,8 +136,12 @@ const Parametres = () => {
                     {utilisateurs.map((user) => (
                       <div key={user.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                         <div className="flex items-center gap-4">
-                          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-                            <User className="h-5 w-5 text-primary-foreground" />
+                          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+                            <img
+                              src={img}
+                              alt="Avatar utilisateur"
+                              className="h-full w-full object-cover rounded-full"
+                            />
                           </div>
                           <div>
                             <h4 className="font-medium">{user.nom}</h4>
@@ -146,17 +151,17 @@ const Parametres = () => {
                             </p>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-3">
                           {getRoleBadge(user.role)}
                           {getStatusBadge(user.statut)}
-                          
+
                           <div className="flex gap-1">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleEditUser(user)}
-                              className="h-8 w-8 p-0"
+                              className="h-8 w-8 p-0 border"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -165,7 +170,7 @@ const Parametres = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDeleteUser(user)}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                className="h-8 w-8 p-0 border"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -200,7 +205,7 @@ const Parametres = () => {
                         <li>• Validation et envoi des mails</li>
                       </ul>
                     </div>
-                    
+
                     <div className="p-4 border border-border rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Rédacteur</Badge>
@@ -245,7 +250,7 @@ const Parametres = () => {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="nom-expediteur">Nom de l'expéditeur</Label>
                       <Input
@@ -258,7 +263,7 @@ const Parametres = () => {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="frequence">Fréquence d'envoi (mails par lot)</Label>
                       <Input
@@ -274,7 +279,7 @@ const Parametres = () => {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="delai">Délai entre les lots (minutes)</Label>
                       <Input
@@ -317,7 +322,7 @@ const Parametres = () => {
                         }))}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Notifications par email</Label>
@@ -333,7 +338,7 @@ const Parametres = () => {
                         }))}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Sauvegarde automatique</Label>
@@ -374,13 +379,13 @@ const Parametres = () => {
                           }))}
                           placeholder="Entrez votre clé API n8n"
                         />
-                        <Button variant="outline">Tester</Button>
+                        <Button variant="outline" className='border-[#8675E1] border-2 text-[#8675E1]'>Tester</Button>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
                         Cette intégration permettra l'automatisation des envois via n8n
                       </p>
                     </div>
-                    
+
                     <div className="bg-muted p-4 rounded-lg">
                       <h4 className="font-medium mb-2">Statut des intégrations</h4>
                       <div className="space-y-2 text-sm">
@@ -432,7 +437,7 @@ const Parametres = () => {
                     className="mt-1"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="new-email">Email</Label>
                   <Input
@@ -446,7 +451,7 @@ const Parametres = () => {
                     className="mt-1"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="new-role">Rôle</Label>
                   <select
@@ -462,7 +467,7 @@ const Parametres = () => {
                     <option value="Admin">Admin</option>
                   </select>
                 </div>
-                
+
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={() => setShowAddUser(false)}>
                     Annuler
