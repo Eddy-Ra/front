@@ -1,0 +1,269 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern CRM Design System with Glassmorphism & Animations
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Modern Color Palette */
+    --background: 220 25% 97%;
+    --background-secondary: 220 20% 95%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+    --card-glass: 0 0% 100% / 0.8;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    /* Primary Modern Blue */
+    --primary: 214 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 214 100% 65%;
+    --primary-light: 214 100% 95%;
+    --primary-glow: 214 100% 70%;
+
+    /* Secondary Elegant Purple */
+    --secondary: 260 60% 65%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 260 60% 70%;
+
+    /* Success Vibrant Green */
+    --success: 142 85% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 85% 95%;
+    --success-glow: 142 85% 55%;
+
+    /* Warning Elegant Orange */
+    --warning: 35 95% 55%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 35 95% 95%;
+
+    /* Muted colors */
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 15% 50%;
+
+    --accent: 214 100% 96%;
+    --accent-foreground: 214 100% 40%;
+
+    --destructive: 0 90% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 96%;
+    --ring: 214 100% 60%;
+
+    --radius: 12px;
+
+    /* CRM Specific Variables */
+    --sidebar-width: 260px;
+    --header-height: 72px;
+    
+    /* Modern Shadows */
+    --shadow-sm: 0 2px 4px 0 hsl(220 20% 20% / 0.08);
+    --shadow-md: 0 4px 12px -2px hsl(220 20% 20% / 0.12), 0 2px 6px -1px hsl(220 20% 20% / 0.08);
+    --shadow-lg: 0 8px 25px -5px hsl(220 20% 20% / 0.15), 0 4px 10px -3px hsl(220 20% 20% / 0.1);
+    --shadow-xl: 0 20px 40px -12px hsl(220 20% 20% / 0.25);
+    --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
+
+    /* Modern Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 100% 60%), hsl(260 60% 65%));
+    --gradient-secondary: linear-gradient(135deg, hsl(260 60% 65%), hsl(290 60% 65%));
+    --gradient-success: linear-gradient(135deg, hsl(142 85% 45%), hsl(120 85% 50%));
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.25), hsl(0 0% 100% / 0.1));
+    --gradient-background: linear-gradient(135deg, hsl(220 25% 97%), hsl(220 20% 95%));
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Mode Modern Colors */
+    --background: 220 30% 8%;
+    --background-secondary: 220 25% 10%;
+    --foreground: 220 15% 92%;
+
+    --card: 220 25% 12%;
+    --card-foreground: 220 15% 92%;
+    --card-glass: 220 25% 12% / 0.8;
+
+    --popover: 220 25% 12%;
+    --popover-foreground: 220 15% 92%;
+
+    /* Primary in Dark Mode */
+    --primary: 214 100% 70%;
+    --primary-foreground: 220 30% 8%;
+    --primary-hover: 214 100% 75%;
+    --primary-light: 214 100% 15%;
+    --primary-glow: 214 100% 80%;
+
+    /* Secondary in Dark Mode */
+    --secondary: 260 60% 75%;
+    --secondary-foreground: 220 30% 8%;
+    --secondary-hover: 260 60% 80%;
+
+    /* Success in Dark Mode */
+    --success: 142 85% 55%;
+    --success-foreground: 220 30% 8%;
+    --success-light: 142 85% 15%;
+    --success-glow: 142 85% 65%;
+
+    /* Warning in Dark Mode */
+    --warning: 35 95% 65%;
+    --warning-foreground: 220 30% 8%;
+    --warning-light: 35 95% 15%;
+
+    --muted: 220 20% 18%;
+    --muted-foreground: 220 15% 65%;
+
+    --accent: 214 100% 20%;
+    --accent-foreground: 214 100% 80%;
+
+    --destructive: 0 90% 70%;
+    --destructive-foreground: 220 30% 8%;
+
+    --border: 220 20% 20%;
+    --input: 220 20% 18%;
+    --ring: 214 100% 70%;
+
+    /* Dark Mode Shadows */
+    --shadow-sm: 0 2px 4px 0 hsl(220 30% 5% / 0.3);
+    --shadow-md: 0 4px 12px -2px hsl(220 30% 5% / 0.4), 0 2px 6px -1px hsl(220 30% 5% / 0.3);
+    --shadow-lg: 0 8px 25px -5px hsl(220 30% 5% / 0.5), 0 4px 10px -3px hsl(220 30% 5% / 0.4);
+    --shadow-xl: 0 20px 40px -12px hsl(220 30% 5% / 0.6);
+    --shadow-glow: 0 0 20px hsl(var(--primary) / 0.4);
+
+    /* Dark Mode Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 100% 70%), hsl(260 60% 75%));
+    --gradient-secondary: linear-gradient(135deg, hsl(260 60% 75%), hsl(290 60% 75%));
+    --gradient-success: linear-gradient(135deg, hsl(142 85% 55%), hsl(120 85% 60%));
+    --gradient-glass: linear-gradient(135deg, hsl(220 25% 20% / 0.25), hsl(220 25% 15% / 0.1));
+    --gradient-background: linear-gradient(135deg, hsl(220 30% 8%), hsl(220 25% 10%));
+
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 220 15% 92%;
+    --sidebar-primary: 214 100% 70%;
+    --sidebar-primary-foreground: 220 30% 8%;
+    --sidebar-accent: 220 20% 18%;
+    --sidebar-accent-foreground: 220 15% 92%;
+    --sidebar-border: 220 20% 20%;
+    --sidebar-ring: 214 100% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-background to-background-secondary text-foreground;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400;
+  }
+
+  /* Global Glassmorphism Styles */
+  .glass {
+    @apply bg-card-glass backdrop-blur-lg border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-card-glass backdrop-blur-lg border border-white/10;
+  }
+
+  /* Animation Classes */
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  /* Hover Effects */
+  .hover-lift {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .hover-lift:hover {
+    @apply transform -translate-y-1 shadow-lg;
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .hover-glow:hover {
+    @apply shadow-glow;
+  }
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.2);
+  }
+  to {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
+  }
+}
