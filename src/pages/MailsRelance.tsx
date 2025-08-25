@@ -10,10 +10,10 @@ import { fetchAiEmailResponses, updateAiEmailResponse, AiEmailResponse, fetchPro
 import Modal from '@/components/Modal';
 
 const MailsRelance = () => {
-  // SECTION: Données mockées des prompts de relance
+
   const [promptsRelance, setPromptsRelance] = useState<PromptRelance[]>([]);
 
-  // Data depuis l'API Laravel -> Supabase ai_email_responses
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -49,7 +49,7 @@ const MailsRelance = () => {
     };
   }, [page]);
 
-  // Charger les prompts depuis l'API
+  
   useEffect(() => {
     let mounted = true;
     const loadPrompts = async () => {
@@ -76,14 +76,14 @@ const MailsRelance = () => {
   const [editedSubject, setEditedSubject] = useState('');
   const [activeTab, setActiveTab] = useState('mails');
 
-  // État pour l'édition des prompts
+ 
   const [selectedPrompt, setSelectedPrompt] = useState<PromptRelance | null>(null);
   const [editedPromptLabel, setEditedPromptLabel] = useState('');
   const [editedPromptSubject, setEditedPromptSubject] = useState('');
   const [editedPromptMessage, setEditedPromptMessage] = useState('');
   const [editingPrompt, setEditingPrompt] = useState(false);
 
-  // État pour la création d'un nouveau prompt
+  
   const [showNewPromptModal, setShowNewPromptModal] = useState(false);
   const [newPromptLabel, setNewPromptLabel] = useState('');
   const [newPromptType, setNewPromptType] = useState('Non réponse');
@@ -91,17 +91,17 @@ const MailsRelance = () => {
   const [newPromptMessage, setNewPromptMessage] = useState('');
   const [creatingPrompt, setCreatingPrompt] = useState(false);
 
-  // État pour la génération d'une relance IA (création d'email)
+
   const [showGenerateIaModal, setShowGenerateIaModal] = useState(false);
   const [genEmail, setGenEmail] = useState('');
   const [genSubject, setGenSubject] = useState('');
   const [genMessage, setGenMessage] = useState('');
   const [creatingMail, setCreatingMail] = useState(false);
 
-  // État pour les messages de succès
+  
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // État pour le rechargement des données
+
   const [refreshing, setRefreshing] = useState(false);
 
   const getTypeColor = (type: string) => {
@@ -144,11 +144,11 @@ const MailsRelance = () => {
         validated_by_admin: true,
         validated_at: new Date().toISOString(),
       });
-      // refresh
+      
       const res = await fetchAiEmailResponses(page, 15);
       setItems(res.items);
       setTotal(res.total);
-      forceStatsUpdate(); // Force la mise à jour des stats
+      forceStatsUpdate(); 
     } catch (e) {
       console.error(e);
       setError('Erreur lors de la validation');
@@ -167,7 +167,7 @@ const MailsRelance = () => {
       const res = await fetchAiEmailResponses(page, 15);
       setItems(res.items);
       setTotal(res.total);
-      forceStatsUpdate(); // Force la mise à jour des stats
+      forceStatsUpdate(); 
     } catch (e) {
       console.error(e);
       setError('Erreur lors du refus');
@@ -191,7 +191,7 @@ const MailsRelance = () => {
       const res = await fetchAiEmailResponses(page, 15);
       setItems(res.items);
       setTotal(res.total);
-      forceStatsUpdate(); // Force la mise à jour des stats
+      forceStatsUpdate(); 
       setSelectedMail(null);
     } catch (e) {
       console.error(e);
@@ -201,7 +201,7 @@ const MailsRelance = () => {
     }
   };
 
-  // Handlers pour les prompts
+ 
   const handleViewPrompt = (prompt: PromptRelance) => {
     setSelectedPrompt(prompt);
     setEditedPromptLabel(prompt.label);
@@ -227,7 +227,7 @@ const MailsRelance = () => {
         subject_template: editedPromptSubject,
         message_template: editedPromptMessage,
       });
-      // Recharger les prompts
+      
       const res = await fetchPromptsRelance(1, 50);
       setPromptsRelance(res.items || []);
       setSelectedPrompt(null);
@@ -245,7 +245,7 @@ const MailsRelance = () => {
     try {
       setSavingId(prompt.id);
       await deletePromptRelance(prompt.id);
-      // Recharger les prompts
+     
       const res = await fetchPromptsRelance(1, 50);
       setPromptsRelance(res.items || []);
     } catch (e) {
@@ -256,7 +256,7 @@ const MailsRelance = () => {
     }
   };
 
-  // Fonction pour forcer la mise à jour des statistiques
+  
   const forceStatsUpdate = () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 100);
@@ -276,12 +276,12 @@ const MailsRelance = () => {
       enAttente: mapped.filter((s) => s === 'En attente').length,
       valides: mapped.filter((s) => s === 'Validé').length,
     };
-  }, [items, total, refreshing]); // Ajout de refreshing pour forcer la mise à jour
+  }, [items, total, refreshing]); 
 
   return (
     <Layout title="Gestion des mails de relance">
       <div className="space-y-6">
-        {/* SECTION: Actions principales */}
+        {/* okk*/}
         <div className="flex flex-col sm:flex-row gap-4">
           <Button onClick={() => setShowNewPromptModal(true)} className="gap-2 border-1">
             <Plus className="h-4 w-4" />
@@ -303,7 +303,7 @@ const MailsRelance = () => {
           </div>
         </div>
 
-        {/* SECTION: Statistiques */}
+        {/*ok */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
@@ -347,14 +347,14 @@ const MailsRelance = () => {
           </div>
         )}
 
-        {/* SECTION: Onglets - Prompts et Mails */}
+        {/* yes*/}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="mails">Mails de Relance</TabsTrigger>
             <TabsTrigger value="prompts">Prompts de Relance</TabsTrigger>
           </TabsList>
 
-          {/* SECTION: Onglet des mails de relance */}
+          {/* ohh */}
           <TabsContent value="mails" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-3">
@@ -364,7 +364,7 @@ const MailsRelance = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {/* Pagination et compteur supprimés conformément à la demande */}
+                      {/*hi .*/}
                       {items.length === 0 && !loading && (
                         <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
                           Aucun mail à afficher.
@@ -372,7 +372,7 @@ const MailsRelance = () => {
                       )}
                       {items.map((row) => {
                         const statut = (() => {
-                          // Priorité à l'envoi
+                          
                           if (row.email_dispatched === true || (row.sent_at && row.sent_at !== null)) return 'Envoyé';
                           if (row.validated_by_admin === true) return 'Validé';
                           if (row.validated_by_admin === false) return 'Refusé';
@@ -470,7 +470,7 @@ const MailsRelance = () => {
             </div>
           </TabsContent>
 
-          {/* SECTION: Onglet des prompts de relance */}
+          {/* yo */}
           <TabsContent value="prompts" className="mt-6">
             <Card>
               <CardHeader>
@@ -519,7 +519,7 @@ const MailsRelance = () => {
           </TabsContent>
         </Tabs>
 
-        {/* SECTION: Modal d'édition de mail de relance */}
+        {/* hello*/}
         {selectedMail && (
           <Modal>
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
@@ -583,7 +583,7 @@ const MailsRelance = () => {
           </Modal>
         )}
 
-        {/* SECTION: Modal d'édition/visualisation des prompts */}
+        {/* big */}
         {selectedPrompt && (
           <Modal>
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
@@ -659,7 +659,7 @@ const MailsRelance = () => {
           </Modal>
         )}
 
-        {/* SECTION: Modal - Nouveau prompt */}
+        {/* lit */}
         {showNewPromptModal && (
           <Modal>
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
@@ -747,7 +747,7 @@ const MailsRelance = () => {
                         
                         try {
                           setCreatingPrompt(true);
-                          setError(null); // Clear previous errors
+                          setError(null); 
                           
                           console.log('Envoi de la requête de création...');
                           const result = await createPromptRelance(payload);
@@ -758,7 +758,7 @@ const MailsRelance = () => {
                           console.log('Nouveaux prompts reçus:', res);
                           setPromptsRelance(res.items || []);
                           
-                          // Force a complete reload to ensure data is fresh
+                          
                           setTimeout(async () => {
                             try {
                               setRefreshing(true);
@@ -766,7 +766,7 @@ const MailsRelance = () => {
                               const freshRes = await fetchPromptsRelance(1, 50);
                               console.log('Prompts frais reçus:', freshRes);
                               setPromptsRelance(freshRes.items || []);
-                              forceStatsUpdate(); // Force la mise à jour des stats
+                              forceStatsUpdate(); 
                             } catch (error) {
                               console.error('Erreur rechargement forcé prompts:', error);
                             } finally {
@@ -802,7 +802,7 @@ const MailsRelance = () => {
           </Modal>
         )}
 
-        {/* SECTION: Modal - Générer relances IA (création d'email) */}
+        {/*yaya */}
         {showGenerateIaModal && (
           <Modal>
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
@@ -874,7 +874,7 @@ const MailsRelance = () => {
                           setItems(res.items);
                           setTotal(res.total);
                           
-                          // Force a complete reload to ensure data is fresh
+                         
                           setTimeout(async () => {
                             try {
                               setRefreshing(true);
@@ -883,7 +883,7 @@ const MailsRelance = () => {
                               console.log('Emails frais reçus:', freshRes);
                               setItems(freshRes.items);
                               setTotal(freshRes.total);
-                              forceStatsUpdate(); // Force la mise à jour des stats
+                              forceStatsUpdate(); 
                             } catch (error) {
                               console.error('Erreur rechargement forcé:', error);
                             } finally {

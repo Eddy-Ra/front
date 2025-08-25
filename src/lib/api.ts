@@ -56,11 +56,11 @@ export type AnalyzeMail = {
   email?: string | null;
   subject?: string | null;
   message?: string | null;
-  status?: string | null; // ex: "intéressé", "intéressé plus tard", "non intéressé", "aucun rapport"
+  status?: string | null; 
   reference?: string | null;
   timestamp?: string | null;
   category_id?: string | number | null;
-  Entreprise?: string | null; // colonne telle quelle
+  Entreprise?: string | null; 
   [key: string]: any;
 };
 
