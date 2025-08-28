@@ -1,71 +1,26 @@
-import React, { useState } from 'react';
-import { Mail, ThumbsUp, ThumbsDown, Clock, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Mail, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const MailsReponses = () => {
-  // SECTION: Données mockées des réponses
-  const [reponses] = useState([
-    {
-      id: 1,
-      expediteur: 'jean.dupont@entreprise.com',
-      sujet: 'Re: Opportunité de collaboration tech',
-      contenu: 'Bonjour, merci pour votre message. Je suis très intéressé par votre proposition. Pouvons-nous programmer un appel cette semaine ?',
-      mailOriginal: 'Bonjour Jean Dupont, je vous contacte concernant...',
-      statut: 'Intéressé',
-      dateReponse: '2024-01-15 14:30',
-      entreprise: 'TechCorp',
-      categorie: 'Tech'
-    },
-    {
-      id: 2,
-      expediteur: 'marie.martin@commerce.fr',
-      sujet: 'Re: Solutions pour votre commerce',
-      contenu: 'Merci pour votre message mais nous avons déjà un prestataire pour ce type de service.',
-      mailOriginal: 'Chère Marie Martin, en tant que responsable...',
-      statut: 'Non intéressé',
-      dateReponse: '2024-01-14 11:20',
-      entreprise: 'Commerce Plus',
-      categorie: 'Commerce'
-    },
-    {
-      id: 3,
-      expediteur: 'pierre.bernard@services.com',
-      sujet: 'Re: Partenariat stratégique',
-      contenu: 'Votre proposition est intéressante. Je ne peux pas m\'engager maintenant mais recontactez-moi dans 6 mois.',
-      mailOriginal: 'Bonjour Pierre Bernard, j\'ai découvert...',
-      statut: 'Intéressé plus tard',
-      dateReponse: '2024-01-13 16:45',
-      entreprise: 'Services Pro',
-      categorie: 'Services'
-    },
-    {
-      id: 4,
-      expediteur: 'sophie.leroy@startup.io',
-      sujet: 'Re: Innovation technologique',
-      contenu: 'Excellent timing ! Nous cherchons justement ce type de solution. Quand pouvons-nous discuter ?',
-      mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...',
-      statut: 'Intéressé',
-      dateReponse: '2024-01-12 09:15',
-      entreprise: 'StartupTech',
-      categorie: 'Tech'
-    }
-  ]);
+axios.defaults.baseURL = 'http://127.0.0.1:8000';
+axios.defaults.headers.common['Accept'] = 'application/json';
+axios.defaults.headers.post['Content-Type'] = 'application/json';
+axios.defaults.headers.put['Content-Type'] = 'application/json';
 
+const ALLOWED_STATUTS = ['Intéressé', 'Non intéressé', 'Intéressé plus tard'] as const;
+
+const MailsReponses = () => {
+  const [reponses, setReponses] = useState<any[]>([]);
   const [selectedReponse, setSelectedReponse] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('toutes');
+  const [loading, setLoading] = useState(false);
 
-  const filteredReponses = reponses.filter(reponse => {
-    if (activeTab === 'toutes') return true;
-    if (activeTab === 'interesse') return reponse.statut === 'Intéressé';
-    if (activeTab === 'non-interesse') return reponse.statut === 'Non intéressé';
-    if (activeTab === 'plus-tard') return reponse.statut === 'Intéressé plus tard';
-    return true;
-  });
-
+  // Voici la fonction de   l'icône en fonction du statut
   const getStatusIcon = (statut: string) => {
     switch (statut) {
       case 'Intéressé':
@@ -79,6 +34,7 @@ const MailsReponses = () => {
     }
   };
 
+  // Voici la fonction du  badge en fonction du statut
   const getStatusBadge = (statut: string) => {
     switch (statut) {
       case 'Intéressé':
@@ -92,16 +48,82 @@ const MailsReponses = () => {
     }
   };
 
+  // Voici la fonction charger les réponses depuis le back-end
+  const fetchReponses = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/reponses');
+      const data = (res.data || []).map((r: any) => ({
+        ...r,
+        entreprise: r.entreprise?.nom ?? '—',
+        categorie: r.categorie?.nom ?? '—',
+        dateReponse: r.date_reponse,
+        mailOriginal: r.mail_original,
+      }));
+      setReponses(data);
+    } catch (err: any) {
+      console.error('Erreur lors du fetch:', err?.response?.status, err?.response?.data || err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Voici la fonction mise à jour du statut (PUT) avec optimistic update + rollback
+  const handleChangeStatus = async (reponse: any, newStatus: string) => {
+    if (!ALLOWED_STATUTS.includes(newStatus as any)) {
+      console.warn('Statut non autorisé pour le back:', newStatus);
+      return;
+    }
+
+    // Sauvegarde de l’état précédent
+    const prev = [...reponses];
+    const updatedLocal = reponses.map(r =>
+      r.id === reponse.id ? { ...r, statut: newStatus } : r
+    );
+    setReponses(updatedLocal);
+
+    if (selectedReponse?.id === reponse.id) {
+      setSelectedReponse({ ...reponse, statut: newStatus });
+    }
+
+    try {
+      await axios.put(`/api/reponses/${reponse.id}`, { statut: newStatus });
+    } catch (err: any) {
+      // Rollback si erreur
+      setReponses(prev);
+      if (selectedReponse?.id === reponse.id) {
+        setSelectedReponse(reponse);
+      }
+      console.error(
+        'Erreur update statut:',
+        err?.response?.status,
+        err?.response?.data?.message || err?.message,
+        err?.response?.data?.errors || err?.response?.data
+      );
+    }
+  };
+
+  useEffect(() => {
+    fetchReponses();
+  }, []);
+
+  // Voici le filtrage par statut
+  const filteredReponses = reponses.filter(reponse => {
+    if (activeTab === 'toutes') return true;
+    if (activeTab === 'interesse') return reponse.statut === 'Intéressé';
+    if (activeTab === 'non-interesse') return reponse.statut === 'Non intéressé';
+    if (activeTab === 'plus-tard') return reponse.statut === 'Intéressé plus tard';
+    return true;
+  });
+
+  // Voicil les Stats
   const stats = {
     total: reponses.length,
     interesse: reponses.filter(r => r.statut === 'Intéressé').length,
     nonInteresse: reponses.filter(r => r.statut === 'Non intéressé').length,
-    plusTard: reponses.filter(r => r.statut === 'Intéressé plus tard').length
+    plusTard: reponses.filter(r => r.statut === 'Intéressé plus tard').length,
   };
 
-  const handleChangeStatus = (reponse: any, newStatus: string) => {
-    console.log('Changer statut:', reponse.id, 'vers', newStatus);
-  };
 
   return (
     <Layout title="Gestion des réponses aux mails">
@@ -115,7 +137,7 @@ const MailsReponses = () => {
               <p className="text-sm text-muted-foreground">Total réponses</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-4 text-center">
               <ThumbsUp className="h-8 w-8 mx-auto mb-2 text-success" />
@@ -123,7 +145,7 @@ const MailsReponses = () => {
               <p className="text-sm text-muted-foreground">Intéressés</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-4 text-center">
               <Clock className="h-8 w-8 mx-auto mb-2 text-warning" />
@@ -131,7 +153,7 @@ const MailsReponses = () => {
               <p className="text-sm text-muted-foreground">Plus tard</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-4 text-center">
               <ThumbsDown className="h-8 w-8 mx-auto mb-2 text-destructive" />
@@ -155,11 +177,10 @@ const MailsReponses = () => {
               {/* SECTION: Liste des réponses */}
               <div className="space-y-4">
                 {filteredReponses.map((reponse) => (
-                  <Card 
-                    key={reponse.id} 
-                    className={`cursor-pointer transition-colors hover:bg-secondary/50 ${
-                      selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''
-                    }`}
+                  <Card
+                    key={reponse.id}
+                    className={`cursor-pointer transition-colors hover:bg-secondary/50 ${selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''
+                      }`}
                     onClick={() => setSelectedReponse(reponse)}
                   >
                     <CardContent className="p-4">
@@ -173,12 +194,12 @@ const MailsReponses = () => {
                         </div>
                         {getStatusBadge(reponse.statut)}
                       </div>
-                      
+
                       <h5 className="font-medium mb-2">{reponse.sujet}</h5>
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {reponse.contenu}
                       </p>
-                      
+
                       <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
                         <Badge variant="outline" className="text-xs">{reponse.categorie}</Badge>
                         <span>{reponse.dateReponse}</span>
@@ -186,7 +207,7 @@ const MailsReponses = () => {
                     </CardContent>
                   </Card>
                 ))}
-                
+
                 {filteredReponses.length === 0 && (
                   <Card>
                     <CardContent className="p-8 text-center">
@@ -258,7 +279,7 @@ const MailsReponses = () => {
                               <ThumbsUp className="h-3 w-3" />
                               Intéressé
                             </Button>
-                            
+
                             <Button
                               variant={selectedReponse.statut === 'Intéressé plus tard' ? 'default' : 'outline'}
                               size="sm"
@@ -268,7 +289,7 @@ const MailsReponses = () => {
                               <Clock className="h-3 w-3" />
                               Plus tard
                             </Button>
-                            
+
                             <Button
                               variant={selectedReponse.statut === 'Non intéressé' ? 'destructive' : 'outline'}
                               size="sm"
