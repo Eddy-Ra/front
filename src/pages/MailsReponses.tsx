@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-axios.defaults.baseURL = 'http://127.0.0.1:8000';
+axios.defaults.baseURL = 'https://www.autoprospectionadmin.omega-connect.tech/api';
 axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 axios.defaults.headers.put['Content-Type'] = 'application/json';
@@ -52,7 +52,7 @@ const MailsReponses = () => {
   const fetchReponses = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/reponses');
+      const res = await axios.get('/reponses');
       const data = (res.data || []).map((r: any) => ({
         ...r,
         entreprise: r.entreprise?.nom ?? '—',
@@ -87,7 +87,7 @@ const MailsReponses = () => {
     }
 
     try {
-      await axios.put(`/api/reponses/${reponse.id}`, { statut: newStatus });
+      await axios.put(`/reponses/${reponse.id}`, { statut: newStatus });
     } catch (err: any) {
       // Rollback si erreur
       setReponses(prev);
