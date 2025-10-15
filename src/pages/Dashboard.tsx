@@ -1,12 +1,18 @@
 import React from 'react';
-import { Users, Mail, Send, Reply, CheckCircle, AlertCircle } from 'lucide-react';
+import { Users, Mail, Send, Reply, CheckCircle, AlertCircle, Brain, Shield, Download, BarChart3 } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import axios from 'axios';
 
 const Dashboard = () => {
-  // SECTION: Données mockées pour le dashboard
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const token = localStorage.getItem('token');
+
+  // Données mockées
   const stats = [
     {
       title: 'Total Contacts',
@@ -55,84 +61,78 @@ const Dashboard = () => {
     { action: 'Envoi de 50 mails', time: '5 min ago', type: 'success' },
     { action: 'Validation de 12 mails', time: '15 min ago', type: 'info' },
     { action: 'Nouvelle réponse reçue', time: '23 min ago', type: 'success' },
-    { action: 'Synchronisation Google Maps', time: '1h ago', type: 'info' }
+    { action: 'Synchronisation Google Maps', time: '1h ago', type: 'info' },
+    { action: 'Sauvegarde automatique', time: '2h ago', type: 'success' }
   ];
 
+  if (!token) {
+    window.location.href = '/login';
+    return null;
+  }
+
   return (
-    <Layout title="Tableau de bord">
-      <div className="space-y-8 animate-fade-in">
-        {/* SECTION: Tableau de bord - Statistiques principales */}
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+            <p className="text-muted-foreground">Bienvenue, {user.name} ! Voici votre aperçu.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Admin</Badge>
+            <Button variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" /> Exporter
+            </Button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, index) => (
-            <StatCard
-              key={index}
-              title={stat.title}
-              value={stat.value}
-              description={stat.description}
-              icon={stat.icon}
-              trend={stat.trend}
-              className="animate-scale-in"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            />
+            <StatCard key={index} title={stat.title} value={stat.value} description={stat.description} icon={stat.icon} trend={stat.trend} />
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* SECTION: Contacts par catégorie */}
-          <Card className="glass hover-lift animate-slide-up border-white/20">
-            <CardHeader className="bg-gradient-glass/30 rounded-t-xl border-b border-white/10">
-              <CardTitle className="flex items-center gap-3 font-poppins text-lg">
-                <div className="p-2 rounded-lg bg-gradient-primary/20 backdrop-blur-sm">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                Contacts par Catégorie
-              </CardTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contacts par Catégorie</CardTitle>
             </CardHeader>
-            <CardContent className="p-6 bg-gradient-glass/10">
+            <CardContent>
               <div className="space-y-4">
                 {contactsByCategory.map((category, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{category.name}</span>
-                      <span className="text-muted-foreground">{category.count}</span>
+                  <div key={index} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{category.name}</p>
+                      <p className="text-xs text-muted-foreground">{category.count} contacts</p>
                     </div>
-                    <Progress value={category.percentage} className="h-2" />
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">{category.percentage}%</p>
+                      <Progress value={category.percentage} className="mt-1 h-2" />
+                    </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* SECTION: Sources de scraping */}
-          <Card className="glass hover-lift animate-slide-up border-white/20" style={{ animationDelay: '0.1s' }}>
-            <CardHeader className="bg-gradient-glass/30 rounded-t-xl border-b border-white/10">
-              <CardTitle className="flex items-center gap-3 font-poppins text-lg">
-                <div className="p-2 rounded-lg bg-gradient-success/20 backdrop-blur-sm">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                </div>
-                Sources de Scraping
-              </CardTitle>
+          <Card>
+            <CardHeader>
+              <CardTitle>Sources de Scraping</CardTitle>
             </CardHeader>
-            <CardContent className="p-6 bg-gradient-glass/10">
-              <div className="space-y-4">
+            <CardContent>
+              <div className="space-y-3">
                 {scrapingSources.map((source, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                  <div key={index} className="flex items-center justify-between p-3 bg-zinc-900 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full ${
-                        source.status === 'active' ? 'bg-success' : 'bg-muted'
-                      }`} />
+                      <Badge variant={source.status === 'active' ? 'default' : 'secondary'}>
+                        {source.status}
+                      </Badge>
                       <div>
                         <p className="font-medium">{source.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {source.contacts} contacts
-                        </p>
+                        <p className="text-xs text-muted-foreground">Dernière sync: {source.lastSync}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {source.lastSync}
-                      </p>
-                    </div>
+                    <Badge className="text-sm">{source.contacts} contacts</Badge>
                   </div>
                 ))}
               </div>
@@ -140,50 +140,36 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* SECTION: Activité récente */}
-          <Card className="lg:col-span-2 glass hover-lift animate-slide-up border-white/20" style={{ animationDelay: '0.2s' }}>
-            <CardHeader className="bg-gradient-glass/30 rounded-t-xl border-b border-white/10">
-              <CardTitle className="font-poppins text-lg flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-secondary/20 backdrop-blur-sm">
-                  <AlertCircle className="h-5 w-5 text-secondary" />
-                </div>
-                Activité Récente
-              </CardTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Activité récente</CardTitle>
             </CardHeader>
-            <CardContent className="p-6 bg-gradient-glass/10">
-              <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                    <div className={`h-2 w-2 rounded-full ${
-                      activity.type === 'success' ? 'bg-success' : 'bg-primary'
-                    }`} />
-                    <div className="flex-1">
-                      <p className="font-medium">{activity.action}</p>
-                      <p className="text-sm text-muted-foreground">{activity.time}</p>
-                    </div>
+            <CardContent className="space-y-3">
+              {recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900">
+                  <div className={`p-2 rounded-full ${activity.type === 'success' ? 'bg-green-500/10' : 'bg-blue-500/10'}`}>
+                    {activity.type === 'success' ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Brain className="h-4 w-4 text-blue-500" />}
                   </div>
-                ))}
-              </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{activity.action}</p>
+                    <p className="text-xs text-muted-foreground">{activity.time}</p>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
-          {/* SECTION: Actions rapides */}
-          <Card className="glass hover-lift animate-slide-up border-white/20" style={{ animationDelay: '0.3s' }}>
-            <CardHeader className="bg-gradient-glass/30 rounded-t-xl border-b border-white/10">
-              <CardTitle className="font-poppins text-lg flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-primary/20 backdrop-blur-sm">
-                  <Send className="h-5 w-5 text-primary" />
-                </div>
-                Actions Rapides
-              </CardTitle>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Actions rapides</CardTitle>
             </CardHeader>
-            <CardContent className="p-6 bg-gradient-glass/10">
-              <div className="space-y-4">
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button className="w-full p-4 text-left glass border border-white/20 rounded-xl hover:bg-gradient-glass hover-lift transition-all duration-300 group">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-gradient-primary/20 group-hover:bg-gradient-primary/30 transition-colors">
-                      <Mail className="h-5 w-5 text-primary" />
+                      <Shield className="h-5 w-5 text-primary" />
                     </div>
                     <span className="font-semibold font-poppins group-hover:text-primary transition-colors">Valider les mails</span>
                   </div>

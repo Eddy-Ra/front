@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Add useRef
 import axios from 'axios';
 import { Mail, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
@@ -19,8 +19,9 @@ const MailsReponses = () => {
   const [selectedReponse, setSelectedReponse] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('toutes');
   const [loading, setLoading] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null); // Add ref for detail panel
 
-  // Voici la fonction de   l'icône en fonction du statut
+  // Voici la fonction de l'icône en fonction du statut
   const getStatusIcon = (statut: string) => {
     switch (statut) {
       case 'Intéressé':
@@ -34,7 +35,7 @@ const MailsReponses = () => {
     }
   };
 
-  // Voici la fonction du  badge en fonction du statut
+  // Voici la fonction du badge en fonction du statut
   const getStatusBadge = (statut: string) => {
     switch (statut) {
       case 'Intéressé':
@@ -116,7 +117,7 @@ const MailsReponses = () => {
     return true;
   });
 
-  // Voicil les Stats
+  // Voici les Stats
   const stats = {
     total: reponses.length,
     interesse: reponses.filter(r => r.statut === 'Intéressé').length,
@@ -124,6 +125,13 @@ const MailsReponses = () => {
     plusTard: reponses.filter(r => r.statut === 'Intéressé plus tard').length,
   };
 
+  // Function to handle card click and scroll to detail
+  const handleCardClick = (reponse: any) => {
+    setSelectedReponse(reponse);
+    if (detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <Layout title="Gestion des réponses aux mails">
@@ -179,9 +187,8 @@ const MailsReponses = () => {
                 {filteredReponses.map((reponse) => (
                   <Card
                     key={reponse.id}
-                    className={`cursor-pointer transition-colors hover:bg-secondary/50 ${selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''
-                      }`}
-                    onClick={() => setSelectedReponse(reponse)}
+                    className={`cursor-pointer transition-colors hover:bg-secondary/50 ${selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''}`}
+                    onClick={() => handleCardClick(reponse)} // Use new handler
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
@@ -219,7 +226,7 @@ const MailsReponses = () => {
               </div>
 
               {/* SECTION: Détail de la réponse sélectionnée */}
-              <div className="space-y-4">
+              <div className="space-y-4" ref={detailRef}> {/* Add ref to detail section */}
                 {selectedReponse ? (
                   <>
                     <Card>
