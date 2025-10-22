@@ -1,542 +1,306 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Download, Upload, RefreshCw } from 'lucide-react';
-import { Layout } from '@/components/ui/navigation';
-import { DataTable } from '@/components/ui/data-table';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import axios from 'axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { API_BASE } from '@/lib/api';
-
-const API_BASE_URL = `${API_BASE}/api`;
-
-let csrfReadyForContacts = false;
-async function ensureCsrfForContacts(): Promise<void> {
-  if (csrfReadyForContacts) return;
-  await axios.get(`${API_BASE}/sanctum/csrf-cookie`, { withCredentials: true });
-  csrfReadyForContacts = true;
-}
-
-interface Categorie {
-  id: number;
-  nom: string;
-  couleur: string;
-  contacts_count?: number;
-}
-
-interface Contact {
-  id: number;
-  prenom: string;
-  nom: string;
-  email: string;
-  telephone: string;
-  source: string;
-  categorie_id: number | null;
-  categorie?: Categorie;
-  statut: string;
-  date_ajout: string;
-}
+import React, { useState, useEffect } from "react";
+import { Plus, Download, Upload, RefreshCw, Edit, Trash2 } from "lucide-react";
+import { Layout } from "@/components/ui/navigation";
+import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/api/api";
+import { CategoryPopup } from "../components/CategoryPopup";
+import { DeleteConfirmationPopup } from "../components/DeleteConfirmationPopup";
 
 const Contacts = () => {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [categories, setCategories] = useState<Categorie[]>([]);
-  const [sourceStats, setSourceStats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [currentContact, setCurrentContact] = useState<Contact | null>(null);
-  const [formData, setFormData] = useState({
-    prenom: '',
-    nom: '',
-    email: '',
-    telephone: '',
-    source: 'Manuel',
-    categorie_id: '',
-    statut: 'Nouveau',
-  });
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [contactManual, setContactManual] = useState<any[]>([]);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  
+  // 🔑 NOUVEAUX ÉTATS pour la popup de suppression
+  const [isDeletePopupOpen, setIsDeletePopupOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<{ id: number; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false); // État de chargement pour la suppression
 
-  const columns = [
-    { key: 'prenom', label: 'Prénom', sortable: true },
-    { key: 'nom', label: 'Nom', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'telephone', label: 'Téléphone' },
-    { key: 'source', label: 'Source', sortable: true, filterable: true },
-    {
-      key: 'categorie_nom',
-      label: 'Catégorie',
-      sortable: true,
-      filterable: true,
-      render: (_: any, row: Contact) => row.categorie?.nom || 'Non catégorisé'
-    },
-    { key: 'statut', label: 'Statut', sortable: true, filterable: true },
-    { key: 'date_ajout', label: 'Date d\'ajout', sortable: true },
-  ];
+  // 🔑 NOUVEAU: États pour la gestion des CONTACTS
+  const [isContactPopupOpen, setIsContactPopupOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<any | null>(null);
 
-  const filters = [
-    {
-      key: 'source',
-      label: 'Source',
-      options: ['Google Maps', 'Phantombuster', 'Manuel', 'Site web'],
-    },
-    {
-      key: 'statut',
-      label: 'Statut',
-      options: ['Nouveau', 'Contacté', 'Intéressé', 'Non intéressé', 'Intéressé plus tard'],
-    },
-    {
-      key: 'categorie_nom',
-      label: 'Catégorie',
-      options: [...new Set(categories.map((cat) => cat.nom))].concat(['Non catégorisé']), // Évite duplicates dans filters
-    },
-  ];
+  // --- Charger les catégories dynamiques (avec anti-cache) ---
+  const fetchCategories = async () => {
+    try {
+      const timestamp = new Date().getTime();
+      const res = await api.get(`/categories?_t=${timestamp}`);
+      
+      setCategories(
+        res.data.map((cat: any, index: number) => ({
+          ...cat,
+          id: cat.id || `temp-${index}`,
+        }))
+      );
+    } catch (err) {
+    }
+  };
+  
+  // --- Charger les contacts phantombuster
+  const fetchContacts = async () => {
+    try {
+      const res = await api.get("/prospects");
+      setContacts(res.data);
+    } catch (err) {
+    }
+  };
+// --- Charger les contacts manuel
+  const fetchContactsManual = async () => {
+    try {
+      const res = await api.get("/b2b_manual");
+      setContactManual(res.data);
+    } catch (err) {
+    }
+  };
 
   useEffect(() => {
     fetchContacts();
     fetchCategories();
-    fetchSourceStats();
+    fetchContactsManual();
   }, []);
 
-  const fetchContacts = async () => {
-    setLoading(true);
+  const combineData = [...contacts, ...contactManual];
+  console.log(combineData);
+  
+
+  const columns = [
+    { key: "full_name", label: "Nom", sortable: true },
+    { key: "email", label: "Email", sortable: true },
+    { key: "company", label: "Société" },
+  ];
+  
+  const filters = [
+    { key: "source", label: "Source", options: ["Google Maps", "Phantombuster", "Manuel"] },
+    { key: "categorie", label: "Catégorie", options: categories.map((c) => c.name) },
+  ];
+
+  // --- CRÉATION & MISE À JOUR (handleSaveCategory) ---
+  const handleSaveCategory = async (name: string, color: string) => {
     try {
-      await ensureCsrfForContacts();
-      const response = await axios.get(`${API_BASE_URL}/contacts`, { timeout: 5000, withCredentials: true });
-      setContacts(response.data || []);
-      setError(null);
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors du chargement des contacts';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      console.error('Error fetching contacts:', err.response?.data || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.get(`${API_BASE_URL}/categories`, { timeout: 5000, withCredentials: true });
-      const categoriesData = response.data || [];
-      setCategories(categoriesData);
-      if (categoriesData.length > 0 && !formData.categorie_id) {
-        setFormData((prev) => ({ ...prev, categorie_id: categoriesData[0].id.toString() }));
-      }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors du chargement des catégories';
-      toast.error(errorMessage);
-      console.error('Error fetching categories:', err.response?.data || err.message);
-    }
-  };
-
-  const fetchSourceStats = async () => {
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.get(`${API_BASE_URL}/source-stats`, { timeout: 5000, withCredentials: true });
-      setSourceStats(response.data || []);
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors du chargement des statistiques';
-      toast.error(errorMessage);
-      console.error('Error fetching stats:', err.response?.data || err.message);
-    }
-  };
-
-  const handleAddContact = () => {
-    setCurrentContact(null);
-    setFormData({
-      prenom: '',
-      nom: '',
-      email: '',
-      telephone: '',
-      source: 'Manuel',
-      categorie_id: categories.length > 0 ? categories[0].id.toString() : 'none', // Utilise 'none' pour aucun
-      statut: 'Nouveau',
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleEditContact = (contact: Contact) => {
-    setCurrentContact(contact);
-    setFormData({
-      prenom: contact.prenom || '',
-      nom: contact.nom,
-      email: contact.email,
-      telephone: contact.telephone,
-      source: contact.source,
-      categorie_id: contact.categorie_id?.toString() || 'none',
-      statut: contact.statut,
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const apiData = {
-        ...formData,
-        categorie_id: formData.categorie_id === 'none' ? null : parseInt(formData.categorie_id),
-      };
-
-      if (currentContact) {
-        await ensureCsrfForContacts();
-        const response = await axios.put(`${API_BASE_URL}/contacts/${currentContact.id}`, apiData, { withCredentials: true });
-        setContacts(contacts.map((c) => (c.id === currentContact.id ? response.data : c)));
-        toast.success('Contact mis à jour avec succès');
+      if (editingCategory) {
+        await api.patch(`/categories/${editingCategory.id}`, { name, color });
       } else {
-        await ensureCsrfForContacts();
-        const response = await axios.post(`${API_BASE_URL}/contacts`, apiData, { withCredentials: true });
-        setContacts([...contacts, response.data]);
-        toast.success('Contact ajouté avec succès');
+        await api.post("/categories", { name, color });
       }
-      setIsModalOpen(false);
-      fetchContacts();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de la sauvegarde du contact';
-      toast.error(errorMessage);
-      console.error('Error saving contact:', err.response?.data || err.message);
+
+      await fetchCategories();
+      setEditingCategory(null);
+      setIsPopupOpen(false);
+    } catch (error) {
     }
   };
 
-  const handleDeleteContact = async (contact: Contact) => {
-    if (window.confirm('Voulez-vous vraiment supprimer ce contact ?')) {
+  // --- ÉDITION (handleEditCategory) ---
+  const handleEditCategory = (category: any) => {
+    setEditingCategory(category);
+    setIsPopupOpen(true);
+  };
+
+  // 🔑 NOUVEAU : Fonction pour ouvrir la popup de suppression
+  const handleOpenDeletePopup = (category: any) => {
+    setCategoryToDelete({ id: category.id, name: category.name });
+    setIsDeletePopupOpen(true);
+  };
+  
+  // 🔑 NOUVEAU : Fonction pour exécuter la suppression après confirmation
+  const handleConfirmDelete = async () => {
+    if (!categoryToDelete?.id) return;
+    
+    setIsDeleting(true);
+    try {
+      await api.delete(`/categories/${categoryToDelete.id}`);
+      await fetchCategories();
+      
+      setIsDeletePopupOpen(false);
+      setCategoryToDelete(null);
+
+    } catch (error) {
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+    // ------------------------------------
+    // --- Logique Contacts (Ajout & Edition) ---
+    // ------------------------------------
+    
+    // 🔑 1. Ouvre la popup d'ajout de contact
+    const handleAddContact = () => {
+      setEditingContact(null); // S'assurer que c'est un ajout
+      setIsContactPopupOpen(true);
+    };
+  
+    // 🔑 2. Sauvegarde le contact
+    const handleSaveContact = async (data: any) => {
       try {
-        await ensureCsrfForContacts();
-        await axios.delete(`${API_BASE_URL}/contacts/${contact.id}`, { withCredentials: true });
-        setContacts(contacts.filter((c) => c.id !== contact.id));
-        toast.success('Contact supprimé avec succès');
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.message || 'Erreur lors de la suppression du contact';
-        toast.error(errorMessage);
-        console.error('Error deleting contact:', err.response?.data || err.message);
+        if (editingContact) {
+            await api.patch(`/prospects/${editingContact.id}`, data);
+        } else {
+            await api.post("/prospects", data);
+        }
+        await fetchContacts(); // Rafraîchir la liste
+        setIsContactPopupOpen(false);
+      } catch (error) {
       }
-    }
-  };
-
-  const handleSyncSources = async () => {
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.post(`${API_BASE_URL}/sync-to-supabase`, undefined, { withCredentials: true });
-      toast.success(`Synchronisation terminée : ${response.data.synced} contacts synchronisés`);
-      fetchContacts();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de la synchronisation avec Supabase';
-      toast.error(errorMessage);
-      console.error('Error syncing with Supabase:', err.response?.data || err.message);
-    }
-  };
-
-  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.post(`${API_BASE_URL}/contacts/import`, formData, {
-        withCredentials: true,
-        // Do not set Content-Type so the browser sets the right multipart boundary
-      });
-      toast.success(response.data.message);
-      fetchContacts();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'importation du CSV';
-      toast.error(errorMessage);
-      console.error('Error importing CSV:', err.response?.data || err.message);
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.get(`${API_BASE_URL}/contacts/export`, {
-        responseType: 'blob',
-        withCredentials: true,
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'contacts.csv');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Contacts exportés avec succès');
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'exportation des contacts';
-      toast.error(errorMessage);
-      console.error('Error exporting contacts:', err.response?.data || err.message);
-    }
-  };
-
-  const handleAddCategory = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const categoryFormData = new FormData(form);
-    const categoryName = categoryFormData.get('categoryName') as string;
-
-    try {
-      await ensureCsrfForContacts();
-      const response = await axios.post(`${API_BASE_URL}/categories`, { nom: categoryName }, { withCredentials: true });
-      setCategories([...categories, response.data]);
-      setIsCategoryModalOpen(false);
-      toast.success('Catégorie ajoutée avec succès');
-      form.reset();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'ajout de la catégorie';
-      toast.error(errorMessage);
-      console.error('Error adding category:', err.response?.data || err.message);
-    }
-  };
+    };
+  
+    // 🔑 3. Édition (Ouvre la popup avec les données du contact)
+    const handleEditContact = (contact: any) => {
+      setEditingContact(contact);
+      setIsContactPopupOpen(true); 
+    };
+  
+    // 🔑 4. Suppression (Implémentation factice)
+    const handleDeleteContact = (contact: any) => {
+      // Logique pour ouvrir une popup de confirmation de suppression de contact
+    };
 
   return (
     <Layout title="Gestion des contacts">
-      <ToastContainer position="top-right" autoClose={5000} />
+      {/* Styles globaux pour cacher la barre de scroll sur Webkit (Chrome/Safari/Edge) */}
+      <style jsx global>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+        }
+      `}</style>
+      
       <div className="space-y-6">
+        {/* Actions principales (omis pour la concision) */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={handleAddContact} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Ajouter un contact
+          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
+            <Plus className="h-4 w-4" /> Ajouter un contact
           </Button>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="file" accept=".csv" onChange={handleImportCsv} className="hidden" />
-            <Button variant="outline" className="gap-2">
-              <Upload className="h-4 w-4" />
-              Importer CSV
-            </Button>
-          </label>
-          <Button variant="outline" onClick={handleExport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Exporter
+          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
+            <Upload className="h-4 w-4" /> Importer CSV
+          </Button>
+          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
+            <Download className="h-4 w-4" /> Exporter
           </Button>
           <Button
             variant="outline"
-            onClick={handleSyncSources}
-            className="gap-2 ml-auto"
-            disabled={loading}
+            onClick={fetchCategories}
+            className="gap-2 ml-auto border-[#8675E1] border-2 text-[#8675E1]"
           >
-            <RefreshCw className="h-4 w-4" />
-            Synchroniser
+            <RefreshCw className="h-4 w-4" /> Synchroniser
           </Button>
         </div>
 
-        {error && (
-          <div className="p-4 bg-destructive text-destructive-foreground rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {loading && <div>Chargement...</div>}
-
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card>
+          {/* Catégories - Design Modifié */}
+          <Card className="flex flex-col h-full max-h-[800px]"> {/* 1. Rendre la Card flexible et donner une hauteur max */}
             <CardHeader>
               <CardTitle>Catégories</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {categories.map((categorie) => (
+            
+            <CardContent className="flex flex-col h-full p-0"> {/* 2. Rendre CardContent flexible, padding géré par les enfants */}
+              
+              {/* 3. Zone de Liste Scrollable avec overflow-y-auto et barre cachée */}
+              <div 
+                className="flex-grow space-y-3 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3" // flex-grow prend l'espace, px-6 pour le padding horizontal
+              >
+                {categories.map((cat: any) => (
                   <div
-                    key={categorie.id} // Utilise id unique au lieu de nom
-                    className="flex items-center justify-between p-3 border border-border rounded-lg"
+                    key={cat.id}
+                    className="flex items-center justify-between p-3 border border-border rounded-lg group hover:bg-secondary/50 transition-colors relative"
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: categorie.couleur }}
-                      />
-                      <span className="font-medium">{categorie.nom}</span>
+                      <div className={`h-3 w-3 rounded-full ${cat.color}`} />
+                      <span className="font-medium truncate max-w-[120px]">{cat.name}</span>
                     </div>
-                    <Badge variant="secondary">{categorie.contacts_count || 0}</Badge>
+
+                    <div className="flex items-center gap-1">
+                      <Badge
+                        variant="secondary"
+                        className="transition-opacity duration-200 group-hover:opacity-0"
+                      >
+                        {cat.contact_count || 0}
+                      </Badge>
+
+                      <div className="absolute right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditCategory(cat)}
+                          title="Modifier la catégorie"
+                        >
+                          <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          // 🔑 APPEL À LA NOUVELLE FONCTION POPUP
+                          onClick={() => handleOpenDeletePopup(cat)} 
+                          title="Supprimer la catégorie"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive/80 hover:text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ))}
+              </div>
+              
+              {/* 4. Bouton Fixé en Bas */}
+              <div className="p-6 pt-4 border-t border-border bg-card"> {/* p-6 pour le padding de CardContent, pt-4 pour la séparation visuelle */}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full mt-4"
-                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="w-full border-[#8675E1] border-2 text-[#8675E1]"
+                  onClick={() => {
+                    setEditingCategory(null);
+                    setIsPopupOpen(true);
+                  }}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouvelle catégorie
+                  <Plus className="h-4 w-4 mr-2" /> Nouvelle catégorie
                 </Button>
               </div>
             </CardContent>
           </Card>
 
+          {/* Table des contacts */}
           <div className="lg:col-span-3">
             <DataTable
               title="Liste des contacts"
               columns={columns}
-              data={contacts}
-              onAdd={handleAddContact}
-              onEdit={handleEditContact}
-              onDelete={handleDeleteContact}
+              data={combineData}
               filters={filters}
-              searchPlaceholder="Rechercher par prénom, nom, email..."
+              searchPlaceholder="Rechercher par nom, email..."
             />
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Statistiques par Source</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {sourceStats.map((stat, index) => (
-                <div
-                  key={index}
-                  className="text-center p-4 border border-border rounded-lg"
-                >
-                  <h3 className="font-semibold text-lg">{stat.source}</h3>
-                  <p className="text-2xl font-bold text-primary mt-2">{stat.contacts}</p>
-                  <p className="text-sm text-muted-foreground">contacts</p>
-                  <Badge className="mt-2 bg-success text-success-foreground">
-                    {stat.statut}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Popup de catégorie (édition + création) */}
+        <CategoryPopup
+          isOpen={isPopupOpen}
+          onClose={() => {
+            setIsPopupOpen(false);
+            setEditingCategory(null);
+          }}
+          onSave={handleSaveCategory}
+          initialData={editingCategory}
+        />
+        
+        {/* 🔑 NOUVELLE POPUP DE CONFIRMATION DE SUPPRESSION */}
+        <DeleteConfirmationPopup
+          isOpen={isDeletePopupOpen}
+          onClose={() => setIsDeletePopupOpen(false)}
+          onConfirm={handleConfirmDelete}
+          categoryName={categoryToDelete?.name || ''}
+          loading={isDeleting}
+        />
       </div>
-
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{currentContact ? 'Modifier le contact' : 'Ajouter un contact'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleFormSubmit}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="prenom">Prénom</Label>
-                <Input
-                  id="prenom"
-                  value={formData.prenom}
-                  onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="nom">Nom</Label>
-                <Input
-                  id="nom"
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="telephone">Téléphone</Label>
-                <Input
-                  id="telephone"
-                  value={formData.telephone}
-                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="source">Source</Label>
-                <Select
-                  value={formData.source}
-                  onValueChange={(value) => setFormData({ ...formData, source: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Google Maps">Google Maps</SelectItem>
-                    <SelectItem value="Phantombuster">Phantombuster</SelectItem>
-                    <SelectItem value="Site web">Site web</SelectItem>
-                    <SelectItem value="Manuel">Manuel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="categorie">Catégorie</Label>
-                <Select
-                  value={formData.categorie_id}
-                  onValueChange={(value) => setFormData({ ...formData, categorie_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une catégorie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucune catégorie</SelectItem> {/* Utilise 'none' au lieu de '' */}
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id.toString()}>
-                        {cat.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="statut">Statut</Label>
-                <Select
-                  value={formData.statut}
-                  onValueChange={(value) => setFormData({ ...formData, statut: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Nouveau">Nouveau</SelectItem>
-                    <SelectItem value="Contacté">Contacté</SelectItem>
-                    <SelectItem value="Intéressé">Intéressé</SelectItem>
-                    <SelectItem value="Non intéressé">Non intéressé</SelectItem>
-                    <SelectItem value="Intéressé plus tard">Intéressé plus tard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-                Annuler
-              </Button>
-              <Button type="submit">{currentContact ? 'Modifier' : 'Ajouter'}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
-        <DialogContent>
-          <div id="dialog-description" className="sr-only">
-            Ajouter une catégorie
-          </div>
-          <DialogHeader>
-            <DialogTitle>Ajouter une catégorie</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleAddCategory}>
-            <div>
-              <Label htmlFor="categoryName">Nom de la catégorie</Label>
-              <Input id="categoryName" name="categoryName" required />
-            </div>
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsCategoryModalOpen(false)}>
-                Annuler
-              </Button>
-              <Button type="submit">Ajouter</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 };

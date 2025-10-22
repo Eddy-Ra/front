@@ -44,7 +44,7 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="flex h-header items-center justify-center border-b border-border/50 px-2 bg-gradient-primary/5">
         <h1 className="flex items-center gap-2 text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
           <Brain className="text-purple-400 w-6 h-6" />
-          OmegaBrain
+          AutoProspect
         </h1>
       </div>
 
