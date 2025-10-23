@@ -6,9 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import {NouveauPromptPopup} from '@/components/mailaenvoyerpopup/NouveauPromptPopup';
+
+
 
 const MailsAEnvoyer = () => {
   // SECTION: Données mockées des prompts et mails
+
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+
+
   const [prompts] = useState([
     {
       id: 1,
@@ -133,7 +140,8 @@ const MailsAEnvoyer = () => {
       <div className="space-y-6">
         {/* SECTION: Actions principales */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={() => console.log('Nouveau prompt')} className="gap-2 border-[#8675E1] border-1">
+          <Button onClick={() => setIsPopupOpen(true)} className="gap-2 border-[#8675E1] border-1">
+
             <Plus className="h-4 w-4" />
             Nouveau prompt
           </Button>
@@ -308,6 +316,17 @@ const MailsAEnvoyer = () => {
           </div>
         )}
       </div>
+      <NouveauPromptPopup
+        isOpen={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        onSave={async (data) => {
+          console.log('Données du nouveau prompt:', data);
+          // Tu peux ici faire un POST vers ton API
+          // await api.post('/prompts', data);
+          setIsPopupOpen(false);
+        }}
+      />
+
     </Layout>
   );
 };
