@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Loader2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { api } from '@/api/api';
 
 interface Category {
   id: string;
@@ -25,38 +24,27 @@ interface ContactPopupProps {
   onClose: () => void;
   onSave: (data: ContactFormData) => Promise<void>;
   initialData?: any | null;
+  categories: Category[];
+  loading?: boolean;
 }
 
-export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onSave, initialData }) => {
+export const ContactPopup: React.FC<ContactPopupProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  initialData, 
+  categories,
+  loading = false 
+}) => {
   const [formData, setFormData] = useState<ContactFormData>({
     full_name: '',
     email: '',
     company: '',
     category_id: '',
-    source: 'Manuel', // ✅ valeur par défaut en mode ajout
+    source: 'Manuel',
   });
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingCategories, setIsFetchingCategories] = useState(false);
-
-  // 🔹 Charger les catégories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      setIsFetchingCategories(true);
-      try {
-        const response = await api.get('/categories');
-        setCategories(response.data);
-      } catch (error) {
-        console.error('Erreur lors du chargement des catégories :', error);
-      } finally {
-        setIsFetchingCategories(false);
-      }
-    };
-    if (isOpen) fetchCategories();
-  }, [isOpen]);
-
-  // 🔹 Préremplir le formulaire lors de l’édition
+  // 🔹 Préremplir le formulaire lors de l'ouverture
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
@@ -66,10 +54,10 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
           email: initialData.email || '',
           company: initialData.company || '',
           category_id: initialData.category_id ? String(initialData.category_id) : '',
-          source: initialData.source || '',
+          source: initialData.source || 'Manuel',
         });
       } else {
-        // Mode ajout
+        // Mode ajout - réinitialiser
         setFormData({
           full_name: '',
           email: '',
@@ -98,14 +86,12 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
 
   const handleSave = async () => {
     if (!formData.full_name.trim() || !formData.category_id) return;
-    setIsLoading(true);
+    
     try {
       await onSave(formData);
-      onClose();
+      // La fermeture est gérée par le parent après la sauvegarde
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du contact :', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -122,7 +108,7 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
       >
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} disabled={isLoading}>
+          <Button variant="ghost" size="icon" onClick={onClose} disabled={loading}>
             <X className="h-5 w-5" />
           </Button>
         </CardHeader>
@@ -137,7 +123,7 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
                 placeholder="Nom et prénom"
                 value={formData.full_name}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -150,7 +136,7 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
                 placeholder="exemple@societe.com"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -162,7 +148,7 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
                 placeholder="Nom de la société"
                 value={formData.company}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -172,56 +158,30 @@ export const ContactPopup: React.FC<ContactPopupProps> = ({ isOpen, onClose, onS
               <Select
                 onValueChange={handleCategorySelect}
                 value={formData.category_id}
-                disabled={isLoading || isFetchingCategories}
+                disabled={loading}
               >
                 <SelectTrigger id="category_id" className="w-full">
-                  <SelectValue placeholder={isFetchingCategories ? "Chargement..." : "Sélectionner une catégorie"} />
+                  <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
+                    <SelectItem key={cat.id} value={String(cat.id)}>
                       {cat.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Source */}
-            <div className="space-y-2">
-              <Label htmlFor="source">Source</Label>
-              <Input
-                id="source"
-                value={formData.source}
-                className="bg-muted/50 cursor-not-allowed text-muted-foreground"
-                disabled
-              />
-            </div>
           </div>
 
-          {/* Boutons */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose} disabled={isLoading}>
-              Annuler
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!isFormValid || isLoading}
-              className="gap-2 bg-gradient-primary border-2 border-primary-hover"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Sauvegarde...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  {buttonText}
-                </>
-              )}
-            </Button>
-          </div>
+          <Button 
+            className="w-full gap-2" 
+            onClick={handleSave} 
+            disabled={!isFormValid || loading}
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {buttonText}
+          </Button>
         </CardContent>
       </Card>
     </div>

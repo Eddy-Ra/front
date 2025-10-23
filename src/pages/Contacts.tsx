@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Download, Upload, RefreshCw, Edit, Trash2 } from "lucide-react";
+import { Plus, Download, Upload, RefreshCw, Edit, Trash2, Loader2 } from "lucide-react"; // 🔑 Import de Loader2
 import { Layout } from "@/components/ui/navigation";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { api } from "@/api/api";
 import { CategoryPopup } from "../components/CategoryPopup";
 import { DeleteConfirmationPopup } from "../components/DeleteConfirmationPopup";
 import { ContactDeleteConfirmationPopup } from "@/components/ContactDeleteConfirmationPopup";
+import { ContactPopup } from "../components/ContactPopup"; 
 
 const Contacts = () => {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -16,6 +17,10 @@ const Contacts = () => {
   const [contactManual, setContactManual] = useState<any[]>([]);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  
+  const [loading, setLoading] = useState(false);
+  // 🔑 NOUVEL ÉTAT : Pour le chargement des catégories
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false); 
 
   // États pour la popup de suppression de catégorie
   const [isDeletePopupOpen, setIsDeletePopupOpen] = useState(false);
@@ -32,21 +37,28 @@ const Contacts = () => {
   const [isDeletingContact, setIsDeletingContact] = useState(false);
 
   // --- Charger les données ---
-const fetchCategories = async () => {
+  const fetchCategories = async () => {
+    // 🔑 Démarrer le chargement
+    setIsCategoriesLoading(true); 
     try {
       const timestamp = new Date().getTime();
       const res = await api.get(`/categories?_t=${timestamp}`);
       setCategories(res.data.map((cat: any, index: number) => ({
         ...cat,
-        id: cat.id || `temp-${index}`, 
+        id: cat.id || `temp-${index}`,
       })));
     } catch (err) {
       console.error("Erreur chargement catégories:", err);
+    } finally {
+      // 🔑 Arrêter le chargement
+      setIsCategoriesLoading(false); 
     }
   };
+
   const fetchContacts = async () => {
     try {
-      const res = await api.get("/prospects");
+      // On ne met pas de spinner pour les contacts car cela ralentirait la page
+      const res = await api.get("/b2b_manual");
       setContacts(res.data);
     } catch (err) {
       console.error("Erreur chargement contacts:", err);
@@ -55,6 +67,7 @@ const fetchCategories = async () => {
 
   const fetchContactsManual = async () => {
     try {
+      // On ne met pas de spinner pour les contacts car cela ralentirait la page
       const res = await api.get("/b2b_manual");
       setContactManual(res.data);
     } catch (err) {
@@ -78,55 +91,46 @@ const fetchCategories = async () => {
 
   const filters = [
     { key: "source", label: "Source", options: ["Google Maps", "Phantombuster", "Manuel"] },
-    { key: "categorie", label: "Catégorie", options: categories.map((c) => c.name) },
+    // S'assurer que les options de filtre sont basées sur le state mis à jour
+    { key: "categorie", label: "Catégorie", options: categories.map((c) => c.name) }, 
   ];
 
   // --- GESTION DES CATÉGORIES ---
+  const handleSaveCategory = async (name: string, color: string) => {
+    try {
+      if (editingCategory) {
+        const res = await api.patch(`/categories/${editingCategory.id}`, { name, color });
+        setCategories((prev) =>
+          prev.map((cat) => (cat.id === editingCategory.id ? res.data : cat))
+        );
+      } else {
+        const res = await api.post("/categories", { name, color });
+        setCategories((prev) => [...prev, res.data]);
+      }
 
-  // 🔄 CRÉATION & MISE À JOUR DES CATÉGORIES (CORRIGÉ)
-// --- CRÉATION & MISE À JOUR (handleSaveCategory) ---
-// --- CRÉATION & MISE À JOUR (handleSaveCategory) ---
-const handleSaveCategory = async (name: string, color: string) => {
-  try {
-    if (editingCategory) {
-      // 🔄 Mise à jour : on PATCH puis on remplace l'ancien objet par le nouveau (res.data)
-      const res = await api.patch(`/categories/${editingCategory.id}`, { name, color });
-      setCategories((prev) =>
-        prev.map((cat) => (cat.id === editingCategory.id ? res.data : cat))
-      );
-    } else {
-      // ➕ Ajout : on POST puis on ajoute l'objet retourné (res.data, qui a l'ID définitif)
-      const res = await api.post("/categories", { name, color });
-      setCategories((prev) => [...prev, res.data]);
+      setEditingCategory(null);
+      setIsPopupOpen(false);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de la catégorie:", error);
     }
-
-    setEditingCategory(null);
-    setIsPopupOpen(false);
-  } catch (error) {
-    console.error("Erreur lors de la sauvegarde de la catégorie:", error);
-    // Optionnel : En cas d'échec de mise à jour directe, forcer un fetch en dernier recours
-    // fetchCategories(); 
-  }
-};
-
+  };
+  
   const handleEditCategory = (category: any) => {
     setEditingCategory(category);
     setIsPopupOpen(true);
   };
-
+  
   const handleOpenDeletePopup = (category: any) => {
     setCategoryToDelete({ id: category.id, name: category.name });
     setIsDeletePopupOpen(true);
   };
-
-  // 🔄 SUPPRESSION DES CATÉGORIES (CORRIGÉ POUR ÊTRE COHÉRENT)
+  
   const handleConfirmDelete = async () => {
     if (!categoryToDelete?.id) return;
 
     setIsDeleting(true);
     try {
       await api.delete(`/categories/${categoryToDelete.id}`);
-      // Utiliser la même logique que pour l'ajout : recharger les données
       await fetchCategories();
       
       setIsDeletePopupOpen(false);
@@ -146,28 +150,69 @@ const handleSaveCategory = async (name: string, color: string) => {
     setIsContactPopupOpen(true);
   };
 
-  // 💾 SAUVEGARDE D'UN CONTACT (DÉCOMMENTÉ ET CORRIGÉ)
-  const handleSaveContact = async (formData: any) => {
-    try {
-      if (editingContact) {
-        // Mise à jour d'un contact existant
-        const res = await api.patch(`/b2b_manual/${editingContact.id}`, formData);
-        setContactManual((prev) =>
-          prev.map((contact) => (contact.id === editingContact.id ? res.data : contact))
-        );
-      } else {
-        // Ajout d'un nouveau contact
-        const res = await api.post('/b2b_manual', formData);
-        // Recharger les contacts pour s'assurer d'avoir les données fraîches
-        await fetchContactsManual();
-      }
+// 💾 SAUVEGARDE D'UN CONTACT (VERSION ROBUSTE)
+const handleSaveContact = async (formData: any) => {
+  try {
+    setLoading(true);
+
+    // Préparer les données pour l'API
+    const apiData = {
+      full_name: formData.full_name,
+      email: formData.email,
+      company: formData.company,
+      category_id: formData.category_id,
+      source: formData.source
+    };
+    
+    let contactId;
+    let finalContact;
+
+    if (editingContact) {
+      // Mise à jour
+      const res = await api.patch(`/b2b_manual/${editingContact.id}`, apiData);
+      contactId = editingContact.id;
       
-      setIsContactPopupOpen(false);
-      setEditingContact(null);
-    } catch (error) {
-      console.error('Erreur sauvegarde contact:', error);
+      // Mise à jour instantanée avec les données du formulaire
+      finalContact = {
+          ...editingContact, // Conserver les relations/champs non mis à jour
+          ...apiData,       // Appliquer les nouvelles données
+          id: contactId
+      };
+      
+      setContactManual(prev =>
+        prev.map(c => c.id === contactId ? finalContact : c)
+      );
+
+    } else {
+      // Ajout
+      const res = await api.post('/b2b_manual', apiData);
+      
+      // 🔥 CORRECTION : Construire l'objet complet pour l'affichage
+      contactId = res.data.id;
+      finalContact = {
+        id: contactId,
+        full_name: formData.full_name,
+        email: formData.email,
+        company: formData.company,
+        category_id: formData.category_id,
+        source: formData.source,
+        created_at: res.data.created_at || new Date().toISOString(),
+        updated_at: res.data.updated_at || new Date().toISOString()
+      };
+      
+      setContactManual(prev => [finalContact, ...prev]);
     }
-  };
+
+    // Fermer la popup
+    setIsContactPopupOpen(false);
+    setEditingContact(null);
+
+  } catch (error) {
+    console.error('Erreur save contact:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleEditContact = (contact: any) => {
     setEditingContact(contact);
@@ -178,14 +223,13 @@ const handleSaveCategory = async (name: string, color: string) => {
     setContactToDelete(contact);
     setIsDeleteContactPopupOpen(true);
   };
-
+  
   const handleConfirmDeleteContact = async () => {
     if (!contactToDelete) return;
 
     setIsDeletingContact(true);
     try {
       await api.delete(`/b2b_manual/${contactToDelete.id}`);
-      // Mise à jour instantanée de l'état local
       setContactManual(prev => prev.filter(c => c.id !== contactToDelete.id));
       setIsDeleteContactPopupOpen(false);
       setContactToDelete(null);
@@ -231,9 +275,11 @@ const handleSaveCategory = async (name: string, color: string) => {
               fetchContacts();
               fetchContactsManual();
             }}
+            // 🔑 Afficher le spinner sur le bouton de synchronisation
             className="gap-2 ml-auto border-[#8675E1] border-2 text-[#8675E1]"
+            disabled={isCategoriesLoading}
           >
-            <RefreshCw className="h-4 w-4" /> Synchroniser
+            {isCategoriesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Synchroniser
           </Button>
         </div>
 
@@ -244,47 +290,57 @@ const handleSaveCategory = async (name: string, color: string) => {
               <CardTitle>Catégories</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col h-full p-0">
-              <div className="flex-grow h-40 space-y-3 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
-                {categories.map((cat: any) => (
-                  <div
-                    key={cat.id}
-                    className="flex items-center justify-between p-3 border border-border rounded-lg group hover:bg-secondary/50 transition-colors relative"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-3 w-3 rounded-full ${cat.color}`} />
-                      <span className="font-medium truncate max-w-[120px]">{cat.name}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Badge
-                        variant="secondary"
-                        className="transition-opacity duration-200 group-hover:opacity-0"
-                      >
-                        {cat.contact_count || 0}
-                      </Badge>
-                      <div className="absolute right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleEditCategory(cat)}
-                          title="Modifier la catégorie"
+              {/* 🔑 Afficher le spinner ou la liste */}
+              {isCategoriesLoading ? (
+                <div className="flex-grow h-40 flex items-center justify-center p-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="flex-grow h-40 space-y-3 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
+                  {categories.map((cat: any) => (
+                    <div
+                      key={cat.id}
+                      className="flex items-center justify-between p-3 border border-border rounded-lg group hover:bg-secondary/50 transition-colors relative"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-3 w-3 rounded-full ${cat.color}`} />
+                        <span className="font-medium truncate max-w-[120px]">{cat.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge
+                          variant="secondary"
+                          className="transition-opacity duration-200 group-hover:opacity-0"
                         >
-                          <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleOpenDeletePopup(cat)}
-                          title="Supprimer la catégorie"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive/80 hover:text-destructive" />
-                        </Button>
+                          {cat.contact_count || 0}
+                        </Badge>
+                        <div className="absolute right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleEditCategory(cat)}
+                            title="Modifier la catégorie"
+                          >
+                            <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleOpenDeletePopup(cat)}
+                            title="Supprimer la catégorie"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive/80 hover:text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {categories.length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground pt-3">Aucune catégorie trouvée.</p>
+                  )}
+                </div>
+              )}
               <div className="p-6 pt-4 border-t border-border bg-card">
                 <Button
                   variant="outline"
@@ -294,6 +350,7 @@ const handleSaveCategory = async (name: string, color: string) => {
                     setEditingCategory(null);
                     setIsPopupOpen(true);
                   }}
+                  disabled={isCategoriesLoading}
                 >
                   <Plus className="h-4 w-4 mr-2" /> Nouvelle catégorie
                 </Button>
@@ -316,7 +373,7 @@ const handleSaveCategory = async (name: string, color: string) => {
           </div>
         </div>
 
-        {/* Popups */}
+        {/* Popups (inchangées) */}
         <CategoryPopup
           isOpen={isPopupOpen}
           onClose={() => {
@@ -327,8 +384,7 @@ const handleSaveCategory = async (name: string, color: string) => {
           initialData={editingCategory}
         />
 
-        {/* 🔑 AJOUTER ContactPopup ICI */}
-        {/* <ContactPopup
+        <ContactPopup
           isOpen={isContactPopupOpen}
           onClose={() => {
             setIsContactPopupOpen(false);
@@ -336,7 +392,9 @@ const handleSaveCategory = async (name: string, color: string) => {
           }}
           onSave={handleSaveContact}
           initialData={editingContact}
-        /> */}
+          categories={categories}
+          loading={loading}
+        />
 
         <DeleteConfirmationPopup
           isOpen={isDeletePopupOpen}
