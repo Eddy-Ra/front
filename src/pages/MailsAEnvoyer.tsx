@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Edit, Check, X, Bot } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { DataTable } from '@/components/ui/data-table';
@@ -8,65 +8,61 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {NouveauPromptPopup} from '@/components/mailaenvoyerpopup/NouveauPromptPopup';
 
-
+interface Prompt {
+  id: number;
+  nom: string;
+  contenu: string;
+  categorie: string;
+  utilise: number;
+  dateCreation?: string;
+}
+interface MailGenere {
+  id: number;
+  destinataire: string;
+  sujet: string;
+  contenu: string;
+  categorie: string;
+  statut: string;
+  genereParIA: boolean;
+  dateGeneration: string;
+}
 
 const MailsAEnvoyer = () => {
-  // SECTION: Données mockées des prompts et mails
-
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
 
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/prompt')
+      .then(res => {
+        if (!res.ok) throw new Error('Erreur réseau');
+        return res.json();
+      })
+      .then((data: Prompt[]) => setPrompts(data))
+      .catch(console.error);
+  }, []);
 
-  const [prompts] = useState([
-    {
-      id: 1,
-      nom: 'Prospection Tech Startups',
-      contenu: 'Bonjour {nom}, je vous contacte concernant votre entreprise {entreprise}...',
-      categorie: 'Tech',
-      utilise: 245,
-      dateCreation: '2024-01-10'
-    },
-    {
-      id: 2,
-      nom: 'Commerce Local',
-      contenu: 'Cher {nom}, en tant que {poste} chez {entreprise}...',
-      categorie: 'Commerce',
-      utilise: 187,
-      dateCreation: '2024-01-08'
-    }
-  ]);
-
-  const [mailsGeneres] = useState([
-    {
-      id: 1,
-      destinataire: 'jean.dupont@entreprise.com',
-      sujet: 'Opportunité de collaboration tech',
-      contenu: 'Bonjour Jean Dupont, je vous contacte concernant votre entreprise TechCorp...',
-      categorie: 'Tech',
-      statut: 'En attente',
-      genereParIA: true,
-      dateGeneration: '2024-01-15'
-    },
-    {
-      id: 2,
-      destinataire: 'marie.martin@commerce.fr',
-      sujet: 'Solutions pour votre commerce',
-      contenu: 'Chère Marie Martin, en tant que responsable chez Commerce Plus...',
-      categorie: 'Commerce',
-      statut: 'Validé',
-      genereParIA: true,
-      dateGeneration: '2024-01-14'
-    },
-    {
-      id: 3,
-      destinataire: 'pierre.bernard@services.com',
-      sujet: 'Partenariat stratégique',
-      contenu: 'Bonjour Pierre Bernard, j\'ai découvert votre entreprise Services Pro...',
-      categorie: 'Services',
-      statut: 'Refusé',
-      genereParIA: false,
-      dateGeneration: '2024-01-13'
-    }
-  ]);
+  // Mails générés
+  const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    fetch('/api/mailsgeneres')  // adapte l'URL si besoin
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(errorText || 'Erreur lors de la récupération des mails générés');
+        }
+        return res.json();
+      })
+      .then((data: MailGenere[]) => {
+        setMailsGeneres(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
 
   const [selectedMail, setSelectedMail] = useState<any>(null);
   const [editedContent, setEditedContent] = useState('');
