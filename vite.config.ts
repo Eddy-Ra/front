@@ -7,9 +7,16 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: true, // Needed for Docker port mapping
-    strictPort: true,
+    strictPort: false,
     port: 5173,
-	allowedHosts: ['autoprospection.omega-connect.tech']
+	allowedHosts: ['autoprospection.omega-connect.tech'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   plugins: [
     react(),

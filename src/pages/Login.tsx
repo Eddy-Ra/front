@@ -52,12 +52,12 @@ const Login = () => {
       <div className="relative z-10 w-full max-w-md">
         <Card className="w-full bg-zinc-900 border-zinc-800 text-white shadow-2xl backdrop-blur-sm animate-fade-in">
           <CardHeader className="space-y-4 text-center">
-            <div className="mx-auto h-16 w-16 flex items-center justify-center bg-gradient-primary from-purple-500 to-rose-500 rounded-2xl shadow-lg transform hover:scale-110 transition-transform duration-300">
+            {/* <div className="mx-auto h-16 w-16 flex items-center justify-center bg-gradient-primary from-purple-500 to-rose-500 rounded-2xl shadow-lg transform hover:scale-110 transition-transform duration-300">
               <KeyRound className="h-8 w-8 text-white" />
-            </div>
+            </div> */}
             <CardTitle className="flex items-center justify-center gap-3 text-4xl font-extrabold tracking-tight">
               <Brain className="w-10 h-10 text-purple-400" />
-              OmegaBrain
+              AutoProspect
             </CardTitle>
 
             <CardDescription className="text-zinc-400 text-base">
@@ -67,7 +67,7 @@ const Login = () => {
 
           <CardContent className="grid gap-4">
             {/* Bouton de connexion Google */}
-            <Button
+            {/* <Button
               variant="outline"
               className="w-full bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700 transition-colors duration-200 group relative overflow-hidden"
               onClick={handleGoogleLogin}
@@ -85,7 +85,7 @@ const Login = () => {
                   Connexion avec Google
                 </>
               )}
-            </Button>
+            </Button> */}
 
             {/* Séparateur OR */}
             <div className="relative">

@@ -97,6 +97,7 @@ const MailsRelance = () => {
   const [genSubject, setGenSubject] = useState('');
   const [genMessage, setGenMessage] = useState('');
   const [creatingMail, setCreatingMail] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
 
   
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -176,8 +177,59 @@ const MailsRelance = () => {
     }
   };
 
-  const handleGenerateRelanceMails = () => {
-    setShowGenerateIaModal(true);
+  const handleGenerateRelanceMails = async () => {
+    // Appel du proxy backend pour éviter CORS et normaliser la réponse
+    try {
+      setPrefilling(true);
+      setError(null);
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8001';
+      const res = await fetch(`${apiBase}/api/prefill-relance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const data: any = isJson ? await res.json() : await res.text();
+
+      // Log console pour diagnostic
+      console.group('Prefill webhook');
+      console.log('raw response:', data);
+      console.log('content-type:', res.headers.get('content-type'));
+      console.groupEnd();
+
+      // Mapping robuste des champs possibles
+      const pickFirst = (obj: any, keys: string[]): string => {
+        if (!obj || typeof obj !== 'object') return '';
+        for (const k of keys) {
+          if (obj[k] != null && obj[k] !== '') return String(obj[k]);
+        }
+        return '';
+      };
+
+      let emailVal = '';
+      let subjectVal = '';
+      let messageVal = '';
+
+      if (typeof data === 'object' && data) {
+        emailVal = pickFirst(data, ['email', 'to', 'dest', 'recipient', 'adresse', 'mail']);
+        subjectVal = pickFirst(data, ['subject', 'sujet', 'title', 'objet']);
+        messageVal = pickFirst(data, ['message', 'body', 'content', 'texte', 'text']);
+      }
+
+      // Toujours préremplir depuis la réponse du webhook (même vide) et ouvrir la modale;
+      setGenEmail(emailVal);
+      setGenSubject(subjectVal);
+      setGenMessage(messageVal);
+    } catch (e: any) {
+      console.error('Erreur prefill:', e);
+      setError("Impossible de préremplir via l’IA pour le moment.");
+      setGenEmail('');
+      setGenSubject('');
+      setGenMessage('');
+    } finally {
+      setPrefilling(false);
+      setShowGenerateIaModal(true);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -859,50 +911,40 @@ const MailsRelance = () => {
                         try {
                           setCreatingMail(true);
                           setError(null);
-                          
-                          console.log('Envoi de la requête de création email...');
-                          const result = await createAiEmailResponse({
-                            email: genEmail.trim(),
-                            subject: genSubject.trim(),
-                            message: genMessage.trim(),
+
+                          // Envoi DIRECT au webhook (depuis React). L'agent IA enregistrera ensuite dans Supabase.
+                          const webhookUrl = 'https://wfw.omega-connect.tech/webhook-test/53b181f1-7b25-4835-8509-c49f2db48b90';
+                          const resp = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              email: genEmail.trim(),
+                              subject: genSubject.trim(),
+                              message: genMessage.trim(),
+                            }),
                           });
-                          console.log('Résultat création email:', result);
-                          
-                          console.log('Rechargement des emails...');
-                          const res = await fetchAiEmailResponses(page, 50);
-                          console.log('Nouveaux emails reçus:', res);
-                          setItems(res.items);
-                          setTotal(res.total);
-                          
-                         
+
+                          if (!resp.ok) {
+                            const txt = await resp.text().catch(() => '');
+                            throw new Error(`Webhook statut ${resp.status}. ${txt?.slice(0,200)}`);
+                          }
+
+                          // Informer l’utilisateur et fermer; l’agent enregistrera côté Supabase
+                          setShowGenerateIaModal(false);
+                          setSuccessMessage('Envoyé à l’IA. La version finale apparaîtra une fois enregistrée.');
+                          setTimeout(() => setSuccessMessage(null), 4000);
+
+                          // Optionnel: rafraîchir la liste après un court délai
                           setTimeout(async () => {
                             try {
-                              setRefreshing(true);
-                              console.log('Rechargement forcé des emails...');
-                              const freshRes = await fetchAiEmailResponses(page, 50);
-                              console.log('Emails frais reçus:', freshRes);
-                              setItems(freshRes.items);
-                              setTotal(freshRes.total);
-                              forceStatsUpdate(); 
-                            } catch (error) {
-                              console.error('Erreur rechargement forcé:', error);
-                            } finally {
-                              setRefreshing(false);
-                            }
-                          }, 1000);
-                          
-                          console.log('Fermeture de la modale...');
-                          setShowGenerateIaModal(false);
-                          setGenEmail('');
-                          setGenSubject('');
-                          setGenMessage('');
-                          
-                          console.log('Création email terminée avec succès');
-                          setSuccessMessage('Email de relance créé avec succès !');
-                          setTimeout(() => setSuccessMessage(null), 3000);
-                        } catch (e) {
-                          console.error('Erreur création mail:', e);
-                          setError('Erreur lors de la création de la relance: ' + (e.message || 'Erreur inconnue'));
+                              const res = await fetchAiEmailResponses(page, 50);
+                              setItems(res.items);
+                              setTotal(res.total);
+                            } catch {}
+                          }, 1500);
+                        } catch (e: any) {
+                          console.error('Erreur webhook direct:', e);
+                          setError('Erreur lors de l’envoi au webhook: ' + (e.message || 'Erreur inconnue'));
                         } finally {
                           setCreatingMail(false);
                         }
