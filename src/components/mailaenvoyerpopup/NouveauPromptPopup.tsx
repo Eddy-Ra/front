@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Loader2, AlertCircle } from 'lucide-react';
+import { X, Plus, Loader2, AlertCircle, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bot } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { api } from '@/api/api';
 
 interface PromptFormData {
   nom: string;
@@ -26,9 +24,10 @@ interface NouveauPromptPopupProps {
   onClose: () => void;
   onSave: (data: PromptFormData) => Promise<void>;
   initialData?: any | null;
+  onRefreshPrompts?: () => Promise<void>;
 }
 
-export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, onClose, onSave, initialData }) => {
+export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, onClose, onSave, initialData, onRefreshPrompts }) => {
   const [isPromptsLoading, setIsPromptsLoading] = useState(false);
   
   const [formData, setFormData] = useState<PromptFormData>({
@@ -43,21 +42,6 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchPrompts = async () => {
-      setIsPromptsLoading(true);
-      try {
-        
-        
-        const timestamp = new Date().getTime();
-        const res = await api.get(`/prompt?_t=${timestamp}`);
-        setPrompts(res.data);
-      } catch (err) {
-        console.error('Erreur chargement prompts:', err);
-        setError('Erreur lors du chargement des prompts');
-      } finally {
-        setIsPromptsLoading(false);
-      }
-    };
   
   // 🟢 Charger dynamiquement les catégories depuis l'API
   useEffect(() => {
@@ -148,7 +132,9 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
     await new Promise((resolve) => setTimeout(resolve, 25000));
 
     // Appel de la fonction pour récupérer les nouveaux prompts
-    await fetchPrompts();
+    if (onRefreshPrompts) {
+      await onRefreshPrompts();
+    }
 
     await onSave(formData);
     onClose();

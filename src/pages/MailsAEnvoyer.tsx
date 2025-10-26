@@ -217,7 +217,7 @@ const MailsAEnvoyer = () => {
 
   return (
     <Layout title="Gestion des mails à envoyer">
-      <style jsx global>{`
+      <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -466,6 +466,7 @@ const MailsAEnvoyer = () => {
         isOpen={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}
         onSave={handleSavePrompt}
+        onRefreshPrompts={fetchPrompts}
       />
     </Layout>
   );
