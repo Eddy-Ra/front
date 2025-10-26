@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Loader2 } from 'lucide-react';
+import { X, Plus, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Bot } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { api } from '@/api/api';
 
 interface PromptFormData {
   nom: string;
   categorie: string;
   texte: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
 }
 
 interface NouveauPromptPopupProps {
@@ -20,22 +28,62 @@ interface NouveauPromptPopupProps {
   initialData?: any | null;
 }
 
-const categories = [
-  { id: 'tech', name: 'Tech' },
-  { id: 'commerce', name: 'Commerce' },
-  { id: 'marketing', name: 'Marketing' },
-  { id: 'design', name: 'Design' },
-  { id: 'autre', name: 'Autre' },
-];
-
 export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, onClose, onSave, initialData }) => {
+  const [isPromptsLoading, setIsPromptsLoading] = useState(false);
+  
   const [formData, setFormData] = useState<PromptFormData>({
     nom: '',
     categorie: '',
     texte: '',
   });
 
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const fetchPrompts = async () => {
+      setIsPromptsLoading(true);
+      try {
+        
+        
+        const timestamp = new Date().getTime();
+        const res = await api.get(`/prompt?_t=${timestamp}`);
+        setPrompts(res.data);
+      } catch (err) {
+        console.error('Erreur chargement prompts:', err);
+        setError('Erreur lors du chargement des prompts');
+      } finally {
+        setIsPromptsLoading(false);
+      }
+    };
+  
+  // 🟢 Charger dynamiquement les catégories depuis l'API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true);
+      setError(null);
+      try {
+        const response = await fetch('http://localhost:8000/api/categories');
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status} lors du chargement des catégories`);
+        }
+        const data = await response.json();
+        // On suppose que l’API retourne un tableau d’objets avec id et name
+        setCategories(data);
+      } catch (err: any) {
+        console.error('Erreur de chargement des catégories :', err);
+        setError("Impossible de charger les catégories. Vérifiez le serveur API.");
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchCategories();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,7 +107,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
 
   const isEditMode = !!initialData;
   const title = isEditMode ? 'Modifier le prompt' : 'Nouveau prompt';
-  const buttonText = isEditMode ? 'Sauvegarder les modifications' : 'Enregistrer le prompt';
+  const buttonText = isEditMode ? 'Sauvegarder les modifications' : 'Générer avec IA';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
@@ -71,17 +119,47 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
   };
 
   const handleSave = async () => {
-    if (!formData.nom.trim() || !formData.categorie || !formData.texte.trim()) return;
-    setIsLoading(true);
-    try {
-      await onSave(formData);
-      onClose();
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde du prompt :', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  if (!formData.nom.trim() || !formData.categorie || !formData.texte.trim()) return;
+
+  setIsLoading(true);
+  setError(null);
+
+  try {
+    if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
+    if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
+
+    const webhookUrl = 'https://wfw.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-ee4018293225';
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nom: formData.nom,
+        categorie: formData.categorie,
+        texte: formData.texte,
+        timestamp: new Date().toISOString(),
+        mode: isEditMode ? 'edit' : 'create',
+      }),
+    });
+
+    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+
+    // Délai de 25 secondes avant de rafraîchir les prompts
+    await new Promise((resolve) => setTimeout(resolve, 25000));
+
+    // Appel de la fonction pour récupérer les nouveaux prompts
+    await fetchPrompts();
+
+    await onSave(formData);
+    onClose();
+  } catch (error: any) {
+    console.error(error);
+    setError(error.message || 'Erreur inconnue');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const isFormValid = formData.nom.trim() !== '' && formData.categorie !== '' && formData.texte.trim() !== '';
 
@@ -102,6 +180,13 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid gap-4">
             {/* Nom */}
             <div className="space-y-2">
@@ -121,10 +206,10 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
               <Select
                 onValueChange={handleCategorySelect}
                 value={formData.categorie}
-                disabled={isLoading}
+                disabled={isLoading || loadingCategories}
               >
                 <SelectTrigger id="categorie" className="w-full">
-                  <SelectValue placeholder="Sélectionner une catégorie" />
+                  <SelectValue placeholder={loadingCategories ? 'Chargement...' : 'Sélectionner une catégorie'} />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map(cat => (
@@ -168,7 +253,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4" />
+                  <Bot className="h-4 w-4" /> 
                   {buttonText}
                 </>
               )}
