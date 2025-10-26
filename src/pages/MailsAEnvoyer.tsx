@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit, Check, X, Bot, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Check, X, Bot, RefreshCw, Loader2, Eye } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { NouveauPromptPopup } from '@/components/mailaenvoyerpopup/NouveauPromptPopup';
+import { ModifierPromptPopup } from '@/components/mailaenvoyerpopup/ModifierPromptPopup';
+import { SupprimerPromptPopup } from '@/components/mailaenvoyerpopup/SupprimerPromptPopup';
 import { api } from '@/api/api';
 
 interface Prompt {
@@ -31,6 +33,9 @@ interface MailGenere {
 
 const MailsAEnvoyer = () => {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [isModifierPopupOpen, setIsModifierPopupOpen] = useState(false);
+  const [isSupprimerPopupOpen, setIsSupprimerPopupOpen] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [selectedMail, setSelectedMail] = useState<any>(null);
@@ -202,6 +207,20 @@ const MailsAEnvoyer = () => {
     }
   };
 
+  const handleEditPrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setIsModifierPopupOpen(true);
+  };
+
+  const handleDeletePrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setIsSupprimerPopupOpen(true);
+  };
+
+  const handlePromptSuccess = async () => {
+    await fetchPrompts();
+  };
+
   const getStatusBadge = (statut: string) => {
     switch (statut) {
       case 'En attente':
@@ -296,11 +315,21 @@ const MailsAEnvoyer = () => {
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Utilisé {prompt.utilise} fois</span>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="outline" className="h-6 px-2 border">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 px-2 border"
+                            onClick={() => handleEditPrompt(prompt)}
+                          >
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button size="sm" variant="outline" className="h-6 px-2 border">
-                            <Eye className="h-3 w-3" />
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-6 px-2 border"
+                            onClick={() => handleDeletePrompt(prompt)}
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </div>
@@ -467,6 +496,26 @@ const MailsAEnvoyer = () => {
         onClose={() => setIsPopupOpen(false)}
         onSave={handleSavePrompt}
         onRefreshPrompts={fetchPrompts}
+      />
+
+      <ModifierPromptPopup
+        isOpen={isModifierPopupOpen}
+        onClose={() => {
+          setIsModifierPopupOpen(false);
+          setSelectedPrompt(null);
+        }}
+        prompt={selectedPrompt}
+        onSuccess={handlePromptSuccess}
+      />
+
+      <SupprimerPromptPopup
+        isOpen={isSupprimerPopupOpen}
+        onClose={() => {
+          setIsSupprimerPopupOpen(false);
+          setSelectedPrompt(null);
+        }}
+        prompt={selectedPrompt}
+        onSuccess={handlePromptSuccess}
       />
     </Layout>
   );
