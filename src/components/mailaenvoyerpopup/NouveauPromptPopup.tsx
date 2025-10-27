@@ -129,7 +129,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
     if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
 
     // Délai de 25 secondes avant de rafraîchir les prompts
-    await new Promise((resolve) => setTimeout(resolve, 25000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     // Appel de la fonction pour récupérer les nouveaux prompts
     if (onRefreshPrompts) {

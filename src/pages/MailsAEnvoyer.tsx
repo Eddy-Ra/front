@@ -346,18 +346,18 @@ const MailsAEnvoyer = () => {
           </Card>
 
           {/* SECTION: Liste des mails générés */}
-          <div className="lg:col-span-2" style={{ height: '70xvh' }}>
-            <Card className="flex flex-col h-full max-h-[800px] overflow-hidden  pb-10">
+          <div className="lg:col-span-2">
+            <Card className="flex flex-col h-full overflow-hidden  pb-10">
               <CardHeader>
                 <CardTitle>Mails Générés</CardTitle>
               </CardHeader>
               <CardContent className="flex-grow overflow-y-auto hide-scrollbar">
                 {isMailsLoading ? (
-                  <div className="flex items-center justify-center h-40">
+                  <div className="flex items-center justify-center" style={{ height: '50vh' }}>
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4" style={{ height: '50vh' }}>
                     {mailsGeneres.map((mail) => (
                       <div key={mail.id} className="p-4 border border-border rounded-lg">
                         <div className="flex items-start justify-between mb-3">
