@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { api } from '@/api/api';
+import { api } from '@/api/api'; // ✅ utilisation de ton instance Axios
 
 interface PromptFormData {
   nom: string;
@@ -47,24 +47,21 @@ export const ModifierPromptPopup: React.FC<ModifierPromptPopupProps> = ({
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Charger les catégories
+  // 🔁 Charger les catégories via Axios (`api`)
   useEffect(() => {
     const fetchCategories = async () => {
       setLoadingCategories(true);
       setError(null);
+
       try {
-        const response = await fetch('http://localhost:8000/api/categories');
-        if (!response.ok) {
-          throw new Error(`Erreur ${response.status} lors du chargement des catégories`);
-        }
-        const data = await response.json();
+        const { data } = await api.get('/categories'); // ✅ utilisation de ton api
         setCategories(data);
       } catch (err: any) {
-        console.error('Erreur de chargement des catégories :', err);
+        console.error('Erreur chargement catégories:', err);
         setError("Impossible de charger les catégories.");
       } finally {
         setLoadingCategories(false);
@@ -76,7 +73,7 @@ export const ModifierPromptPopup: React.FC<ModifierPromptPopupProps> = ({
     }
   }, [isOpen]);
 
-  // Initialiser le formulaire avec les données du prompt
+  // 🔁 Préremplir le formulaire avec les données du prompt
   useEffect(() => {
     if (isOpen && prompt) {
       setFormData({
@@ -98,6 +95,7 @@ export const ModifierPromptPopup: React.FC<ModifierPromptPopupProps> = ({
     setFormData(prev => ({ ...prev, categorie: value }));
   };
 
+  // 💾 Sauvegarde (mise à jour du prompt)
   const handleSave = async () => {
     if (!formData.nom.trim() || !formData.categorie || !formData.contenu.trim()) return;
 
@@ -108,27 +106,31 @@ export const ModifierPromptPopup: React.FC<ModifierPromptPopupProps> = ({
       if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
       if (formData.contenu.length > 5000) throw new Error('Le contenu ne doit pas dépasser 5000 caractères');
 
+      // ✅ utilisation de ton api
       await api.patch(`/prompt/${prompt.id}`, {
         nom: formData.nom,
         categorie: formData.categorie,
         contenu: formData.contenu,
       });
 
-      onSuccess();
+      onSuccess(); // rechargement parent
       onClose();
     } catch (error: any) {
       console.error('Erreur modification prompt:', error);
-      setError(error.message || 'Erreur lors de la modification');
+      setError(error.response?.data?.message || 'Erreur lors de la modification.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isFormValid = formData.nom.trim() !== '' && formData.categorie !== '' && formData.contenu.trim() !== '';
+  const isFormValid =
+    formData.nom.trim() !== '' &&
+    formData.categorie.trim() !== '' &&
+    formData.contenu.trim() !== '';
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
+      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
       <Card

@@ -76,10 +76,9 @@ export const SupprimerPromptPopup: React.FC<SupprimerPromptPopupProps> = ({
             Annuler
           </Button>
           <Button
-            variant="destructive"
             onClick={handleDelete}
             disabled={isLoading}
-            className="gap-2"
+            className="gap-2 bg-red-700 hover:bg-red-800 gap-2 bg-gradient-primary border-2 border-primary-hover"
           >
             {isLoading ? (
               <>

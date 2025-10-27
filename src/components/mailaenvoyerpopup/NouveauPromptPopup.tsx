@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { api } from '@/api/api'; // ✅ utilisation de l'instance Axios
 
 interface PromptFormData {
   nom: string;
@@ -36,25 +37,18 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
     texte: '',
   });
 
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  
-  // 🟢 Charger dynamiquement les catégories depuis l'API
+  // 🟢 Charger dynamiquement les catégories depuis l'API avec Axios
   useEffect(() => {
     const fetchCategories = async () => {
       setLoadingCategories(true);
       setError(null);
       try {
-        const response = await fetch('http://localhost:8000/api/categories');
-        if (!response.ok) {
-          throw new Error(`Erreur ${response.status} lors du chargement des catégories`);
-        }
-        const data = await response.json();
-        // On suppose que l’API retourne un tableau d’objets avec id et name
+        const { data } = await api.get('/categories'); // ✅ utilisation de l'api Axios
         setCategories(data);
       } catch (err: any) {
         console.error('Erreur de chargement des catégories :', err);
@@ -103,49 +97,43 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
   };
 
   const handleSave = async () => {
-  if (!formData.nom.trim() || !formData.categorie || !formData.texte.trim()) return;
+    if (!formData.nom.trim() || !formData.categorie || !formData.texte.trim()) return;
 
-  setIsLoading(true);
-  setError(null);
+    setIsLoading(true);
+    setError(null);
 
-  try {
-    if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
-    if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
+    try {
+      if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
+      if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
 
-    const webhookUrl = 'https://wfw.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-ee4018293225';
+      const webhookUrl = 'https://wfw.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-ee4018293225';
 
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      // ✅ Utilisation de l'API Axios pour le webhook
+      await api.post(webhookUrl, {
         nom: formData.nom,
         categorie: formData.categorie,
         texte: formData.texte,
         timestamp: new Date().toISOString(),
         mode: isEditMode ? 'edit' : 'create',
-      }),
-    });
+      });
 
-    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+      // Délai de 10 secondes avant de rafraîchir les prompts
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Délai de 25 secondes avant de rafraîchir les prompts
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+      // Appel de la fonction pour récupérer les nouveaux prompts
+      if (onRefreshPrompts) {
+        await onRefreshPrompts();
+      }
 
-    // Appel de la fonction pour récupérer les nouveaux prompts
-    if (onRefreshPrompts) {
-      await onRefreshPrompts();
+      await onSave(formData);
+      onClose();
+    } catch (error: any) {
+      console.error(error);
+      setError(error.response?.data?.message || error.message || 'Erreur inconnue');
+    } finally {
+      setIsLoading(false);
     }
-
-    await onSave(formData);
-    onClose();
-  } catch (error: any) {
-    console.error(error);
-    setError(error.message || 'Erreur inconnue');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+  };
 
   const isFormValid = formData.nom.trim() !== '' && formData.categorie !== '' && formData.texte.trim() !== '';
 
