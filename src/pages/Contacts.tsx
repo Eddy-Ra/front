@@ -373,6 +373,37 @@ const handleSaveContact = async (formData: any) => {
           </div>
         </div>
 
+                          {/* SECTION: Statistiques des sources */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Statistiques par Source</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-4 border border-border rounded-lg">
+                <h3 className="font-semibold text-lg">Google Maps</h3>
+                <p className="text-2xl font-bold text-primary mt-2">1,523</p>
+                <p className="text-sm text-muted-foreground">contacts</p>
+                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+              </div>
+              
+              <div className="text-center p-4 border border-border rounded-lg">
+                <h3 className="font-semibold text-lg">Phantombuster</h3>
+                <p className="text-2xl font-bold text-primary mt-2">894</p>
+                <p className="text-sm text-muted-foreground">contacts</p>
+                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+              </div>
+              
+              <div className="text-center p-4 border border-border rounded-lg">
+                <h3 className="font-semibold text-lg">Ajout Manuel</h3>
+                <p className="text-2xl font-bold text-primary mt-2">430</p>
+                <p className="text-sm text-muted-foreground">contacts</p>
+                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Popups (inchangées) */}
         <CategoryPopup
           isOpen={isPopupOpen}

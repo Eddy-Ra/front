@@ -292,11 +292,11 @@ const MailsAEnvoyer = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* SECTION: Prompts prédéfinis */}
-          <Card className="flex flex-col h-full max-h-[800px] overflow-hidden pb-10">
+          <Card className="flex flex-col h-full overflow-hidden pb-15">
             <CardHeader>
               <CardTitle>Prompts Prédéfinis</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col h-full p-0">
+            <CardContent className="flex flex-col h-[50vh] p-0">
               {isPromptsLoading ? (
                 <div className="flex-grow h-40 flex items-center justify-center p-6">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
