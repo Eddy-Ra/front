@@ -29,6 +29,7 @@ interface MailGenere {
   statut: string;
   genereParIA: boolean;
   dateGeneration: string;
+  prompt_id: number; // ID du prompt utilisé pour générer ce mail
 }
 
 const MailsAEnvoyer = () => {
@@ -41,6 +42,9 @@ const MailsAEnvoyer = () => {
   const [selectedMail, setSelectedMail] = useState<any>(null);
   const [editedContent, setEditedContent] = useState('');
   const [editedSubject, setEditedSubject] = useState('');
+  
+  // État pour le filtrage par prompt
+  const [selectedPromptForFilter, setSelectedPromptForFilter] = useState<number | null>(null);
   
   // États de chargement
   const [isPromptsLoading, setIsPromptsLoading] = useState(false);
@@ -221,6 +225,21 @@ const MailsAEnvoyer = () => {
     await fetchPrompts();
   };
 
+  // Fonction pour gérer le clic sur un prompt (filtrage)
+  const handlePromptClick = (promptId: number) => {
+    setSelectedPromptForFilter(promptId === selectedPromptForFilter ? null : promptId);
+  };
+
+  // Fonction pour réinitialiser le filtre
+  const handleResetFilter = () => {
+    setSelectedPromptForFilter(null);
+  };
+
+  // Filtrer les mails en fonction du prompt sélectionné
+  const filteredMails = selectedPromptForFilter
+    ? mailsGeneres.filter(mail => mail.prompt_id === selectedPromptForFilter)
+    : mailsGeneres;
+
   const getStatusBadge = (statut: string) => {
     switch (statut) {
       case 'En attente':
@@ -303,8 +322,33 @@ const MailsAEnvoyer = () => {
                 </div>
               ) : (
                 <div className="flex-grow h-40 space-y-4 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
+                  {/* Bouton "Tous" pour réinitialiser le filtre */}
+                  <div 
+                    onClick={handleResetFilter}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                      selectedPromptForFilter === null 
+                        ? 'border-primary bg-primary/10 shadow-sm' 
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Tous les mails</h4>
+                      <Badge variant={selectedPromptForFilter === null ? "default" : "outline"}>
+                        {mailsGeneres.length}
+                      </Badge>
+                    </div>
+                  </div>
+
                   {prompts.map((prompt) => (
-                    <div key={prompt.id} className="p-4 border border-border rounded-lg">
+                    <div 
+                      key={prompt.id} 
+                      onClick={() => handlePromptClick(prompt.id)}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                        selectedPromptForFilter === prompt.id 
+                          ? 'border-primary bg-primary/10 shadow-sm' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">{prompt.nom}</h4>
                         <Badge variant="outline">{prompt.categorie}</Badge>
@@ -313,8 +357,15 @@ const MailsAEnvoyer = () => {
                         {prompt.contenu}
                       </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Utilisé {prompt.utilise} fois</span>
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-2">
+                          <span>Utilisé {prompt.utilise} fois</span>
+                          {selectedPromptForFilter === prompt.id && (
+                            <Badge variant="default" className="text-xs">
+                              {filteredMails.length} mail(s)
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button 
                             size="sm" 
                             variant="outline" 
@@ -358,7 +409,7 @@ const MailsAEnvoyer = () => {
                   </div>
                 ) : (
                   <div className="space-y-4" style={{ height: '50vh' }}>
-                    {mailsGeneres.map((mail) => (
+                    {filteredMails.map((mail) => (
                       <div key={mail.id} className="p-4 border border-border rounded-lg">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
@@ -420,6 +471,11 @@ const MailsAEnvoyer = () => {
                         </div>
                       </div>
                     ))}
+                    {filteredMails.length === 0 && mailsGeneres.length > 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-8">
+                        Aucun mail trouvé pour ce prompt.
+                      </p>
+                    )}
                     {mailsGeneres.length === 0 && (
                       <p className="text-center text-sm text-muted-foreground py-8">
                         Aucun mail généré.
