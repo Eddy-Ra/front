@@ -22,13 +22,15 @@ interface SupprimerPromptPopupProps {
   onClose: () => void;
   prompt: Prompt | null;
   onSuccess: () => void;
+  nombreMailsGeneres: number; // Nombre de mails générés associés à ce prompt
 }
 
 export const SupprimerPromptPopup: React.FC<SupprimerPromptPopupProps> = ({
   isOpen,
   onClose,
   prompt,
-  onSuccess
+  onSuccess,
+  nombreMailsGeneres
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,14 +55,30 @@ export const SupprimerPromptPopup: React.FC<SupprimerPromptPopupProps> = ({
 
   if (!isOpen || !prompt) return null;
 
+  // Vérifier si le prompt a des mails générés associés
+  const hasGeneratedMails = nombreMailsGeneres > 0;
+
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+          <AlertDialogTitle>
+            {hasGeneratedMails ? 'Suppression impossible' : 'Confirmer la suppression'}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Êtes-vous sûr de vouloir supprimer le prompt <strong>"{prompt.nom}"</strong> ?
-            Cette action est irréversible.
+            {hasGeneratedMails ? (
+              <>
+                Le prompt <strong>"{prompt.nom}"</strong> ne peut pas être supprimé car il est utilisé 
+                par <strong>{nombreMailsGeneres}</strong> mail(s) généré(s).
+                <br /><br />
+                Veuillez d'abord supprimer ou modifier les mails associés avant de supprimer ce prompt.
+              </>
+            ) : (
+              <>
+                Êtes-vous sûr de vouloir supprimer le prompt <strong>"{prompt.nom}"</strong> ?
+                Cette action est irréversible.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -73,25 +91,27 @@ export const SupprimerPromptPopup: React.FC<SupprimerPromptPopupProps> = ({
 
         <AlertDialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            Annuler
+            {hasGeneratedMails ? 'Fermer' : 'Annuler'}
           </Button>
-          <Button
-            onClick={handleDelete}
-            disabled={isLoading}
-            className="gap-2 bg-red-700 hover:bg-red-800 gap-2 bg-gradient-primary border-2 border-primary-hover"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Suppression...
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-4 w-4" />
-                Supprimer
-              </>
-            )}
-          </Button>
+          {!hasGeneratedMails && (
+            <Button
+              onClick={handleDelete}
+              disabled={isLoading}
+              className="gap-2 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Suppression...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </>
+              )}
+            </Button>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

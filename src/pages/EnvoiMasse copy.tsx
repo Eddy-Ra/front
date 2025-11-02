@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Play, Pause, History, AlertCircle, CheckCircle, Mail, List, Edit, Save, X } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { Button } from '@/components/ui/button';
@@ -6,13 +6,43 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area'; 
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { api } from '@/api/api';
+import { toast } from '@/hooks/use-toast';
+
+
+interface MailGenere {
+  id: number;
+  destinataire: string;
+  sujet: string;
+  contenu: string;
+  categorie: string;
+  statut: string;
+  genereParIA: boolean;
+  dateGeneration: string;
+  prompt_id: number; // ID du prompt utilisé pour générer ce mail
+}
+interface B2b_manual {
+  id: number;
+  full_name: string;
+  email: string;
+  company: string;
+  source: string;
+  created_at: string;
+  updated_at?: string;
+  generateMessage: boolean;
+  category_id: string;
+}
+
+
+
+
 
 // SECTION: Données Mockées pour la Gestion des Catégories
-const mockCategoriesData = [
+
+
+const mCD = [
   {
-    id: 1,
     name: 'Tech Startups',
     messageTitle: 'Opportunités de Partenariat Tech',
     messageContent: 'Bonjour [NOM], nous avons des solutions innovantes pour votre startup tech...',
@@ -26,7 +56,6 @@ const mockCategoriesData = [
     progress: 0,
   },
   {
-    id: 2,
     name: 'Finance & Conseils',
     messageTitle: 'Rapport Annuel d\'Analyse Financière',
     messageContent: 'Cher [NOM], veuillez trouver ci-joint notre rapport exclusif sur le secteur financier...',
@@ -39,7 +68,6 @@ const mockCategoriesData = [
     progress: 0,
   },
   {
-    id: 3,
     name: 'Restauration',
     messageTitle: 'Offre Spéciale Équipements de Cuisine',
     messageContent: 'Bonjour, nous avons une offre unique sur nos équipements de cuisine professionnels pour [COMPANY]...',
@@ -53,13 +81,74 @@ const mockCategoriesData = [
 ];
 
 const EnvoiMasse = () => {
+  useEffect(() => {
+  
+  fetchMailsGeneres()
+  for (let i = 0; i < mailsGeneres.length; i++) {
+    const element = mailsGeneres[i];
+      setmockCategoriesData(function() {
+
+      })
+    }
+  }, []);
   const [isRunning, setIsRunning] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
   const [batchSize, setBatchSize] = useState(50);
-  const [messagesCategories, setMessagesCategories] = useState(mockCategoriesData);
-  const [selectedCategory, setSelectedCategory] = useState(mockCategoriesData[0]);
+  const [messagesCategories, setMessagesCategories] = useState();
+  const [selectedCategory, setSelectedCategory] = useState();
   const [editingLimit, setEditingLimit] = useState<number | null>(null);
   const [tempLimit, setTempLimit] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<any[]>([]); // Utilisé si nécessaire ailleurs
+  const [mockCategoriesData, setmockCategoriesData] = useState<any[]>([mCD]); // Utilisé si nécessaire ailleurs
+  
+  
+  
+  
+  
+  const fetchContacts = async () => {
+      try {
+        const res = await api.get("/b2b_manual");
+        setContacts(res.data);
+      } catch (err) {
+        console.error("Erreur chargement contacts:", err);
+      }
+    };
+  const fetchCatById = async (id) => {
+      try {
+        const res = await api.get("/categories/"+id);
+        return res.data;
+      } catch (err) {
+        console.error("Erreur chargement contacts:", err);
+      }
+    };
+    
+  // --- Charger les mails générés ---
+    const fetchMailsGeneres = async () => {
+      try {
+        const timestamp = new Date().getTime();
+        const res = await api.get(`/mailsgeneres?_t=${timestamp}`);
+        setMailsGeneres(res.data);
+        setError(null);
+      } catch (err) {
+        console.error('Erreur chargement mails générés:', err);
+        setError('Erreur lors du chargement des mails générés');
+      }
+    };
+
+  useEffect(() => {
+      const loadData = async () => {
+        fetchContacts();
+      }
+      loadData();
+    }, []);
+  console.log('Contacts chargés:', contacts);
+  
+  
+  // URL du webhook N8N
+  const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
 
   // SECTION: Données mockées de l'envoi en cours (Global)
   const currentSending = {
@@ -114,7 +203,7 @@ const EnvoiMasse = () => {
     { email: 'contact@invalide.xx', statut: 'Erreur', timestamp: '09:32:10', category: 'Tech Startups', details: 'Adresse inconnue' }
   ]);
 
-  // --- Fonctions de gestion de l'envoi (inchangées) ---
+  // --- Fonctions de gestion de l'envoi avec N8N ---
 
   const handleStartSending = () => {
     setIsRunning(true);
@@ -126,18 +215,131 @@ const EnvoiMasse = () => {
     // ... (Logique réelle d'appel à l'API/n8n pour mettre en pause)
   };
 
-  const handleSendIndividual = (contactId: number, categoryId: number) => {
-    console.log(`Envoi individuel à contact ${contactId} de catégorie ${categoryId}`);
+  const handleSendIndividual = async (contactId: number, categoryId: number) => {
+    const category = messagesCategories.find(cat => cat.id === categoryId);
+    const contact = category?.contacts.find(c => c.id === contactId);
+    
+    if (!category || !contact) {
+      toast({
+        title: "Erreur",
+        description: "Contact ou catégorie introuvable",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      await api.post(WEBHOOK_URL, {
+        mode: 'send_individual',
+        category_id: category.id,
+        category_name: category.name,
+        message_title: category.messageTitle,
+        message_content: category.messageContent,
+        contact: {
+          id: contact.id,
+          full_name: contact.full_name,
+          email: contact.email,
+          company: contact.company,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Envoi individuel lancé",
+        description: `Email en cours d'envoi à ${contact.email}`,
+      });
+
+    } catch (error) {
+      console.error('Erreur envoi individuel:', error);
+      toast({
+        title: "Erreur d'envoi",
+        description: "Impossible d'envoyer l'email",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSendCategoryBatch = (categoryId: number) => {
+  const handleSendCategoryBatch = async (categoryId: number) => {
+    const category = messagesCategories.find(cat => cat.id === categoryId);
+    
+    if (!category) {
+      toast({
+        title: "Erreur",
+        description: "Catégorie introuvable",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setMessagesCategories(prev => 
-        prev.map(cat => cat.id === categoryId ? { ...cat, isSending: true, progress: 0 } : cat)
+      prev.map(cat => cat.id === categoryId ? { ...cat, isSending: true, progress: 0 } : cat)
     );
-    console.log(`Lancement de l'envoi pour la catégorie ${categoryId} avec une limite de ${messagesCategories.find(c => c.id === categoryId)?.limit}`);
+
+    try {
+      setLoading(true);
+      
+      await api.post(WEBHOOK_URL, {
+        mode: 'send_batch',
+        category_id: category.id,
+        category_name: category.name,
+        message_title: category.messageTitle,
+        message_content: category.messageContent,
+        contacts: category.contacts,
+        limit: category.limit,
+        total_contacts: category.contacts.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Envoi en lot lancé",
+        description: `${category.contacts.length} emails en cours d'envoi pour ${category.name}`,
+      });
+
+      // Simuler la progression (à remplacer par un vrai suivi si disponible)
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        setMessagesCategories(prev =>
+          prev.map(cat =>
+            cat.id === categoryId ? { ...cat, progress: Math.min(progress, 100) } : cat
+          )
+        );
+        
+        if (progress >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setMessagesCategories(prev =>
+              prev.map(cat =>
+                cat.id === categoryId ? { ...cat, isSending: false, progress: 0 } : cat
+              )
+            );
+          }, 1000);
+        }
+      }, 2000);
+
+    } catch (error) {
+      console.error('Erreur envoi en lot pour la catégorie:', error);
+      toast({
+        title: "Erreur d'envoi",
+        description: "Impossible de lancer l'envoi en lot",
+        variant: "destructive",
+      });
+      
+      setMessagesCategories(prev =>
+        prev.map(cat =>
+          cat.id === categoryId ? { ...cat, isSending: false, progress: 0 } : cat
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // --- Nouvelles fonctions pour la modification de la limite ---
+  // --- Fonctions pour la modification de la limite ---
 
   const handleStartEditLimit = (categoryId: number, currentLimit: number) => {
     setEditingLimit(categoryId);
@@ -152,6 +354,10 @@ const EnvoiMasse = () => {
           cat.id === categoryId ? { ...cat, limit: newLimit } : cat
         )
       );
+      toast({
+        title: "Limite mise à jour",
+        description: `Nouvelle limite: ${newLimit} emails`,
+      });
     }
     setEditingLimit(null);
     setTempLimit('');
@@ -162,14 +368,14 @@ const EnvoiMasse = () => {
     setTempLimit('');
   };
 
-  // --- Fonctions d'aide (légèrement détaillées) ---
+  // --- Fonctions d'aide ---
 
   const getStatusColor = (statut: string) => {
     switch (statut) {
       case 'Envoyé':
-        return 'text-success';
+        return 'text-green-600';
       case 'En cours':
-        return 'text-warning';
+        return 'text-yellow-600';
       case 'En attente':
         return 'text-muted-foreground';
       case 'Erreur':
@@ -182,9 +388,9 @@ const EnvoiMasse = () => {
   const getStatusIcon = (statut: string) => {
     switch (statut) {
       case 'Envoyé':
-        return <CheckCircle className="h-4 w-4 text-success" />;
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'En cours':
-        return <div className="h-4 w-4 border-2 border-warning border-t-transparent rounded-full animate-spin" />;
+        return <div className="h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />;
       case 'Erreur':
         return <AlertCircle className="h-4 w-4 text-destructive" />;
       default:
@@ -197,7 +403,7 @@ const EnvoiMasse = () => {
   return (
     <Layout title="Envoi en masse">
       <div className="space-y-6">
-        <div className="h-4" /> {/* Séparateur visuel */}
+        <div className="h-4" />
 
         {/* SECTION 2: Messages, Catégories & Contacts */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -239,7 +445,7 @@ const EnvoiMasse = () => {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-success hover:text-success-foreground"
+                              className="h-6 w-6 p-0 hover:bg-green-600 hover:text-white"
                               onClick={() => handleSaveLimit(cat.id)}
                             >
                               <Save className="h-3 w-3" />
@@ -266,7 +472,7 @@ const EnvoiMasse = () => {
                                 e.stopPropagation();
                                 handleStartEditLimit(cat.id, cat.limit);
                               }}
-                              disabled={isRunning || cat.isSending}
+                              disabled={isRunning || cat.isSending || loading}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -285,7 +491,7 @@ const EnvoiMasse = () => {
                                 size="sm"
                                 className="w-full h-8 gap-1"
                                 onClick={(e) => { e.stopPropagation(); handleSendCategoryBatch(cat.id); }}
-                                disabled={isRunning || cat.isSending || cat.contacts.length === 0}
+                                disabled={isRunning || cat.isSending || cat.contacts.length === 0 || loading}
                             >
                                 <Play className="h-3 w-3" />
                                 Envoyer en lot ({cat.contacts.length})
@@ -328,7 +534,7 @@ const EnvoiMasse = () => {
                                     variant="outline"
                                     className="h-7 ml-2 flex-shrink-0 gap-1"
                                     onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
-                                    disabled={isRunning || selectedCategory.isSending}
+                                    disabled={isRunning || selectedCategory.isSending || loading}
                                 >
                                     <Send className="h-3 w-3" />
                                     1 par 1
@@ -341,9 +547,9 @@ const EnvoiMasse = () => {
           </Card>
         </div>
         
-        <div className="h-4" /> {/* Séparateur visuel */}
+        <div className="h-4" />
 
-        {/* SECTION 3: Statuts et Historique (Détaillés) */}
+        {/* SECTION 3: Statuts et Historique */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Statuts d'envoi en temps réel */}
@@ -396,7 +602,7 @@ const EnvoiMasse = () => {
                         <span className="font-medium">{envoi.date}</span>
                         <Badge 
                           variant={envoi.statut === 'Terminé' ? 'default' : 'destructive'}
-                          className={envoi.statut === 'Terminé' ? 'bg-success text-success-foreground' : ''}
+                          className={envoi.statut === 'Terminé' ? 'bg-green-600 text-white' : ''}
                         >
                           {envoi.statut}
                         </Badge>
@@ -408,7 +614,7 @@ const EnvoiMasse = () => {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Envoyés</p>
-                          <p className="font-medium text-success">{envoi.envoyes}</p>
+                          <p className="font-medium text-green-600">{envoi.envoyes}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Erreurs</p>
@@ -416,7 +622,7 @@ const EnvoiMasse = () => {
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border">
-                        **Détails**: {envoi.details}
+                        <strong>Détails</strong>: {envoi.details}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Durée: {envoi.duree}

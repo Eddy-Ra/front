@@ -106,7 +106,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
       if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
       if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
 
-      const webhookUrl = 'https://wfw.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-ee4018293225';
+      const webhookUrl = 'https://wfw.omega-connect.tech/webhook-test/ace774ca-91e7-4ca0-9121-ee401829322501';
 
       // ✅ Utilisation de l'API Axios pour le webhook
       await api.post(webhookUrl, {
