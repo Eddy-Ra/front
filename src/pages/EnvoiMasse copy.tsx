@@ -34,75 +34,28 @@ interface B2b_manual {
   category_id: string;
 }
 
-
-
-
-
 // SECTION: Données Mockées pour la Gestion des Catégories
 
 
-const mCD = [
-  {
-    name: 'Tech Startups',
-    messageTitle: 'Opportunités de Partenariat Tech',
-    messageContent: 'Bonjour [NOM], nous avons des solutions innovantes pour votre startup tech...',
-    contacts: [
-      { id: 101, full_name: 'Jean Dupont', email: 'jean.d@tech.com', company: 'InnovTech', category: 'Tech Startups' },
-      { id: 102, full_name: 'Marie Curie', email: 'marie.c@solut.io', company: 'SolutIO', category: 'Tech Startups' },
-      { id: 103, full_name: 'Alex Smith', email: 'alex.s@code.net', company: 'CodeFlow', category: 'Tech Startups' },
-    ],
-    limit: 150, 
-    isSending: false,
-    progress: 0,
-  },
-  {
-    name: 'Finance & Conseils',
-    messageTitle: 'Rapport Annuel d\'Analyse Financière',
-    messageContent: 'Cher [NOM], veuillez trouver ci-joint notre rapport exclusif sur le secteur financier...',
-    contacts: [
-      { id: 201, full_name: 'Pierre Bernard', email: 'pierre.b@finance.fr', company: 'FinCorp', category: 'Finance & Conseils' },
-      { id: 202, full_name: 'Sophie Martin', email: 'sophie.m@advice.com', company: 'GlobalAdvice', category: 'Finance & Conseils' },
-    ],
-    limit: 100,
-    isSending: false,
-    progress: 0,
-  },
-  {
-    name: 'Restauration',
-    messageTitle: 'Offre Spéciale Équipements de Cuisine',
-    messageContent: 'Bonjour, nous avons une offre unique sur nos équipements de cuisine professionnels pour [COMPANY]...',
-    contacts: [
-      { id: 301, full_name: 'Lucas Roux', email: 'lucas.r@food.net', company: 'Le Gourmet', category: 'Restauration' },
-    ],
-    limit: 50,
-    isSending: false,
-    progress: 0,
-  },
-];
+
 
 const EnvoiMasse = () => {
-  useEffect(() => {
-  
-  fetchMailsGeneres()
-  for (let i = 0; i < mailsGeneres.length; i++) {
-    const element = mailsGeneres[i];
-      setmockCategoriesData(function() {
+  const mCD = [];
 
-      })
-    }
-  }, []);
+  
   const [isRunning, setIsRunning] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
   const [batchSize, setBatchSize] = useState(50);
-  const [messagesCategories, setMessagesCategories] = useState();
-  const [selectedCategory, setSelectedCategory] = useState();
+  const [mockCategoriesData, setmockCategoriesData] = useState<any[]>([mCD]); // Utilisé si nécessaire ailleurs
+  const [selectedCategory, setSelectedCategory] = useState(mockCategoriesData[0]);
+  const [messagesCategories, setMessagesCategories] = useState(mockCategoriesData);
+
   const [editingLimit, setEditingLimit] = useState<number | null>(null);
   const [tempLimit, setTempLimit] = useState('');
   const [loading, setLoading] = useState(false);
   const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>([]); // Utilisé si nécessaire ailleurs
-  const [mockCategoriesData, setmockCategoriesData] = useState<any[]>([mCD]); // Utilisé si nécessaire ailleurs
   
   
   
@@ -139,12 +92,33 @@ const EnvoiMasse = () => {
     };
 
   useEffect(() => {
-      const loadData = async () => {
+    const loadData = async () => {
         fetchContacts();
+        fetchMailsGeneres();
+        for (let i = 0; i < mailsGeneres.length; i++) {
+          
+          //inserting mCD new data
+          const contactInfo = []
+          for (let j = 0; j < contacts.length; j++) {
+            const oneContact = { id: contacts[j].id, full_name: contacts[j].full_name, email: contacts[j].email, company: contacts[j].company, category: contacts[j].category_id };
+            contactInfo.push(oneContact);
+          }
+          const mailInfo={
+            name: 'Finance & Conseils',
+            messageTitle: 'Rapport Annuel d\'Analyse Financière',
+            messageContent: 'Cher [NOM], veuillez trouver ci-joint notre rapport exclusif sur le secteur financier...',
+          
+            contacts: contactInfo,
+            limit: contactInfo.length,
+            isSending: false,
+            progress: 0,
+          };
+          mCD.push(mailInfo)
+        }
       }
       loadData();
     }, []);
-  console.log('Contacts chargés:', contacts);
+    
   
   
   // URL du webhook N8N
