@@ -335,6 +335,7 @@ const EnvoiMasse = () => {
   fetchRealTimeStatus();
 
   // Boucle sur tous les contacts
+  const timestamp = new Date().toISOString()
   for (let i = 0; i < totalContacts; i++) {
     try { 
       setLoading(true);
@@ -352,7 +353,7 @@ const EnvoiMasse = () => {
         contact, // un seul contact par itération
         limit: totalContacts, // valeur max pour le workflow
         compteur, // compteur actuel
-        timestamp: new Date().toISOString(),
+        timestamp: timestamp,
         identifiant_unique: identifiant_unique
       });
 
