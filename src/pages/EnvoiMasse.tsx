@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { api } from '@/api/api';
 import { toast } from '@/hooks/use-toast';
+import { set } from 'date-fns';
 
 interface MailGenere {
   id: number;
@@ -53,6 +54,29 @@ interface MessageCategory {
   progress: number;
 }
 
+interface historique {
+  id: number;
+  date: string;
+  totalMails: number;
+  envoyes: number;
+  erreurs: number;
+  statut: string;
+  duree: string;
+  details: string;
+}
+interface realtimestatus {
+  id: number;
+  created_at: string;
+  email: string;
+  statut: string;
+  category: string;
+  company: string;
+  details?: string;
+  is_to_display_now:boolean;
+}
+
+
+
 const EnvoiMasse = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
@@ -65,7 +89,8 @@ const EnvoiMasse = () => {
   const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<B2b_manual[]>([]);
-  //const [historique, sethistorique] = useState(0);
+  const [historique, sethistorique] = useState<historique[]>([]);
+  const [statusMails, setstatusMails] = useState<realtimestatus[]>([]);
   
 
 
@@ -73,59 +98,38 @@ const EnvoiMasse = () => {
   //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/simulate-progress';
   const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook/simulate-progress';
 
-  // {
-  //     id: 1,
-  //     date: '2024-01-15 09:30',
-  //     totalMails: 850,
-  //     envoyes: 847,
-  //     erreurs: 3,
-  //     statut: 'Terminé',
-  //     duree: '1h 23min',
-  //     details: 'Tech Startups (300/300), Finance (250/250), Erreurs: 3 adresses non valides.'
-  //   },
-
-  const [historique] = useState([
-    {
-      id: 1,
-      date: '2024-01-15 09:30',
-      totalMails: 850,
-      envoyes: 847,
-      erreurs: 3,
-      statut: 'Terminé',
-      duree: '1h 23min',
-      details: 'Tech Startups (300/300), Finance (250/250), Erreurs: 3 adresses non valides.'
-    },
-    {
-      id: 2,
-      date: '2024-01-14 14:15',
-      totalMails: 650,
-      envoyes: 650,
-      erreurs: 0,
-      statut: 'Terminé',
-      duree: '58min',
-      details: 'Restauration (100/100), Voyages (550/550). 100% de succès.'
-    },
-    {
-      id: 3,
-      date: '2024-01-13 10:00',
-      totalMails: 420,
-      envoyes: 415,
-      erreurs: 5,
-      statut: 'Terminé avec erreurs',
-      duree: '42min',
-      details: 'Services (415/420). 5 erreurs de connexion SMTP.'
-    }
-  ]);
+  
 
   //{ email: 'jean.dupont@entreprise.com', statut: 'Envoyé', timestamp: '09:32:15', category: 'Tech Startups' },
-  const [statusMails] = useState([
-    { email: 'jean.dupont@entreprise.com', statut: 'Envoyé', timestamp: '09:32:15', category: 'Tech Startups' },
-    { email: 'marie.martin@commerce.fr', statut: 'Envoyé', timestamp: '09:32:14', category: 'Tech Startups' },
-    { email: 'pierre.bernard@services.com', statut: 'En cours', timestamp: '09:32:13', category: 'Finance & Conseils' },
-    { email: 'sophie.leroy@startup.io', statut: 'En attente', timestamp: '-', category: 'Finance & Conseils' },
-    { email: 'contact@invalide.xx', statut: 'Erreur', timestamp: '09:32:10', category: 'Tech Startups', details: 'Adresse inconnue' }
-  ]);
+  
 
+  const fetchRealTimeStatus = async () => {
+    try {
+      const res = await api.get("/realtimestatus");
+      setstatusMails([...res.data].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ).reverse());
+
+
+      return res.data;
+    } catch (err) {
+      console.error("Erreur chargement contacts:", err);
+      return [];
+    }
+  };
+  
+
+  const fetchHistory = async () => {
+    try {
+      const res = await api.get("/envoiemassehisto");
+      sethistorique(res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Erreur chargement contacts:", err);
+      return [];
+    }
+  };
+  fetchHistory();
   const fetchContacts = async () => {
     try {
       const res = await api.get("/b2b_manual");
@@ -164,6 +168,8 @@ const EnvoiMasse = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        fetchRealTimeStatus();
+        
         setLoading(true);
 
         // 1. Charger les données initiales en parallèle
@@ -172,24 +178,18 @@ const EnvoiMasse = () => {
           fetchMailsGeneres()
         ]);
         
-        // --- NOUVEAUTÉ : PRÉCHARGEMENT DES CATÉGORIES ---
-        
         // 2. Identifier tous les IDs de catégorie uniques nécessaires
         const categoryIds = Array.from(new Set(contactsData.map(c => c.category_id)));
 
-        // 3. Charger TOUTES les catégories requises en parallèle
-        // Map chaque ID à une Promise de catégorie et utilise Promise.all()
         const categoryPromises = categoryIds.map(id => fetchCatById(id));
         const categoriesResolved = await Promise.all(categoryPromises);
 
-        // 4. Créer une Map pour un lookup rapide (ID -> Objet Catégorie)
         const categoryMap = new Map();
         categoriesResolved.forEach(cat => {
             // cat est l'objet résolu: { id: ..., name: "Hôtellerie & Tourisme", ... }
             categoryMap.set(cat.id, cat); 
         });
 
-        // --- FIN DU PRÉCHARGEMENT ---
 
         const mCD: MessageCategory[] = [];
 
@@ -320,12 +320,23 @@ const EnvoiMasse = () => {
   );
 
   // Compteur initial envoyé à n8n
+  const identifiant_unique=`batch-${category.id}-${Date.now()}`
   let compteur = 0;
   const totalContacts = category.contacts.length;
+  const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook/realtime";//prod
+  //const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook-test/realtime";
+  const reponse = await api.post(webhookUrl_realtime, {
+    contacts: category.contacts,
+    contacts_len: totalContacts,
+    identifiant_unique: identifiant_unique
+  });  
+  console.log(reponse.data);
+  
+  fetchRealTimeStatus();
 
   // Boucle sur tous les contacts
   for (let i = 0; i < totalContacts; i++) {
-    try {
+    try { 
       setLoading(true);
       const contact = category.contacts[i];
 
@@ -342,6 +353,7 @@ const EnvoiMasse = () => {
         limit: totalContacts, // valeur max pour le workflow
         compteur, // compteur actuel
         timestamp: new Date().toISOString(),
+        identifiant_unique: identifiant_unique
       });
 
       // 🟢 Étape 2 : on attend la réponse de N8N (Respond to Webhook1)
@@ -350,12 +362,14 @@ const EnvoiMasse = () => {
 
       // 🔹 Mise à jour du compteur (renvoyé par N8N)
       compteur = data.compteur + 1;
+      
 
       // 🔹 Calcul de la progression
       const progress = Math.min(
         Math.round((compteur / totalContacts) * 100),
         100
       );
+      
 
       // 🔹 Mise à jour du state React
       setMessagesCategories(prev =>
@@ -391,8 +405,15 @@ const EnvoiMasse = () => {
     } finally {
       setLoading(false);
     }
+    fetchRealTimeStatus();
+    
   }
-
+    fetchHistory();
+    fetchRealTimeStatus();
+    // Actualisation finale du statut en temps réel dans 16 minutes
+    setTimeout(() => {
+      fetchRealTimeStatus();
+    }, 16 * 60 * 1000); // 15 minutes
   // ✅ Fin de boucle
   toast({
     title: "Envoi terminé",
@@ -629,8 +650,8 @@ const EnvoiMasse = () => {
             <CardContent>
               <ScrollArea className="h-80 pr-4">
                 <div className="space-y-3">
-                  {statusMails.map((mail, index) => (
-                    <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                  {statusMails.map((mail, index) => ( 
+                    (mail.is_to_display_now==true)? <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                               {getStatusIcon(mail.statut)}
@@ -643,11 +664,11 @@ const EnvoiMasse = () => {
                       </div>
                       <div className="flex justify-between items-center text-xs mt-1 pl-7">
                           {mail.details && <span className="text-destructive italic">{mail.details}</span>}
-                          {mail.timestamp !== '-' && (
-                              <span className="text-muted-foreground ml-auto">{mail.timestamp}</span>
+                          {mail.created_at !== '-' && (
+                              <span className="text-muted-foreground ml-auto">{mail.created_at}</span>
                           )}
                       </div>
-                    </div>
+                    </div>:<></>
                   ))}
                 </div>
               </ScrollArea>
