@@ -5,18 +5,45 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge'; 
 import { Button } from '@/components/ui/button'; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; 
+import { api } from '@/api/api';
+
+
  
 const ITEMS_PER_PAGE = 2; // nombre d'éléments par page 
+interface Reponse { 
+  id: number; 
+  expediteur: string; 
+  sujet: string; 
+  contenu: string; 
+  mailOriginal: string; 
+  statut: string; 
+  dateReponse: string; 
+  entreprise: string; 
+  categorie: string; 
+}
  
 const MailsReponses = () => { 
-  const [reponses] = useState([ 
-    { id: 1, expediteur: 'jean.dupont@entreprise.com', sujet: 'Re: Opportunité de collaboration tech', contenu: 'Bonjour, merci pour votre message...', mailOriginal: 'Bonjour Jean Dupont, je vous contacte...', statut: 'Intéressé', dateReponse: '2024-01-15 14:30', entreprise: 'TechCorp', categorie: 'Tech' }, 
-    { id: 2, expediteur: 'marie.martin@commerce.fr', sujet: 'Re: Solutions pour votre commerce', contenu: 'Merci pour votre message mais...', mailOriginal: 'Chère Marie Martin, en tant que responsable...', statut: 'Non intéressé', dateReponse: '2024-01-14 11:20', entreprise: 'Commerce Plus', categorie: 'Commerce' }, 
-    { id: 3, expediteur: 'pierre.bernard@services.com', sujet: 'Re: Partenariat stratégique', contenu: 'Votre proposition est intéressante...', mailOriginal: 'Bonjour Pierre Bernard, j\'ai découvert...', statut: 'Intéressé plus tard', dateReponse: '2024-01-13 16:45', entreprise: 'Services Pro', categorie: 'Services' }, 
-    { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' }, 
-    { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' }, 
-    { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' } 
-  ]); 
+  const [reponses, setReponses] = useState<Reponse[]>([]);
+  const fetchReponses = async () => {
+      try {
+        const res = await api.get("/mailsreponses");
+        setReponses(res.data);
+        return res.data;
+      } catch (err) {
+        console.error("Erreur chargement contacts:", err);
+        return [];
+      }
+    };
+  fetchReponses();
+
+  // const [reponses] = useState([ 
+  //   { id: 1, expediteur: 'jean.dupont@entreprise.com', sujet: 'Re: Opportunité de collaboration tech', contenu: 'Bonjour, merci pour votre message...', mailOriginal: 'Bonjour Jean Dupont, je vous contacte...', statut: 'Intéressé', dateReponse: '2024-01-15 14:30', entreprise: 'TechCorp', categorie: 'Tech' }, 
+  //   { id: 2, expediteur: 'marie.martin@commerce.fr', sujet: 'Re: Solutions pour votre commerce', contenu: 'Merci pour votre message mais...', mailOriginal: 'Chère Marie Martin, en tant que responsable...', statut: 'Non intéressé', dateReponse: '2024-01-14 11:20', entreprise: 'Commerce Plus', categorie: 'Commerce' }, 
+  //   { id: 3, expediteur: 'pierre.bernard@services.com', sujet: 'Re: Partenariat stratégique', contenu: 'Votre proposition est intéressante...', mailOriginal: 'Bonjour Pierre Bernard, j\'ai découvert...', statut: 'Intéressé plus tard', dateReponse: '2024-01-13 16:45', entreprise: 'Services Pro', categorie: 'Services' }, 
+  //   { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' }, 
+  //   { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' }, 
+  //   { id: 4, expediteur: 'sophie.leroy@startup.io', sujet: 'Re: Innovation technologique', contenu: 'Excellent timing !...', mailOriginal: 'Bonjour Sophie, j\'ai vu que votre startup...', statut: 'Intéressé', dateReponse: '2024-01-12 09:15', entreprise: 'StartupTech', categorie: 'Tech' } 
+  // ]); 
  
   const [selectedReponse, setSelectedReponse] = useState<any>(null); 
   const [activeTab, setActiveTab] = useState('toutes'); 
