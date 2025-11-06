@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Download, Upload, RefreshCw, Edit, Trash2, Loader2 } from "lucide-react";
 import { Layout } from "@/components/ui/navigation";
 import { DataTable } from "@/components/ui/data-table";
@@ -15,6 +15,10 @@ const Contacts = () => {
   const [contacts, setContacts] = useState<any[]>([]); // Utilisé si nécessaire ailleurs
   const [categories, setCategories] = useState<any[]>([]);
   const [contactManual, setContactManual] = useState<any[]>([]); // Source de vérité pour la DataTable
+  
+  // 🔑 NOUVEAU: État pour le filtre de catégorie sélectionnée (Stocke le NOM de la catégorie)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
 
@@ -51,6 +55,8 @@ const Contacts = () => {
   };
 
   const fetchContactsManual = async () => {
+    // 🔑 On utilise `setLoading(true)` ici pour que la DataTable commence à charger immédiatement
+    setLoading(true);
     try {
       const res = await api.get("/b2b_manual");
       setContactManual(res.data);
@@ -58,6 +64,8 @@ const Contacts = () => {
     } catch (err) {
       console.error("Erreur chargement contacts manuels:", err);
       return [];
+    } finally {
+      // 🔑 On remet setLoading(false) après la fin de la chaîne d'appels dans l'useEffect pour être précis
     }
   };
 
@@ -88,9 +96,12 @@ const Contacts = () => {
 
   useEffect(() => {
     const loadData = async () => {
+      // Le setLoading(true) a déjà été appelé dans fetchContactsManual
       const manualContacts = await fetchContactsManual();
       await fetchCategories(manualContacts);
       fetchContacts();
+      // On arrête le loading général seulement après que tout soit chargé
+      setLoading(false); 
     }
     loadData();
   }, []);
@@ -101,12 +112,43 @@ const Contacts = () => {
     { key: "company", label: "Société" },
   ];
 
-  const filters = [
-    { key: "source", label: "Source", options: ["Google Maps", "Phantombuster", "Manuel"] },
-    { key: "categorie", label: "Catégorie", options: categories.map((c) => c.name) },
-  ];
+  // 🔑 NOUVELLE FONCTION : Gère la mise à jour du filtre de catégorie
+  const handleFilterChange = (filterKey: string, value: string | null) => {
+    if (filterKey === "categorie") {
+      // Si la valeur est 'Toutes' ou null, on réinitialise le filtre à null (pour afficher tous les contacts)
+      setSelectedCategoryFilter(value === null || value === 'Toutes' ? null : value);
+    }
+    // Les autres filtres (comme 'source') seraient gérés ici si nécessaire.
+  };
 
-  // --- GESTION DES CATÉGORIES (conservé) ---
+  // 🔑 NOUVEAU USEMEMO : Calcule la liste de contacts à afficher après filtrage
+  const filteredContactManual = useMemo(() => {
+    // 1. Si aucun filtre n'est sélectionné (ou 'Toutes'), on retourne la liste brute
+    if (!selectedCategoryFilter) {
+      return contactManual;
+    }
+
+    // 2. On trouve l'ID de la catégorie correspondant au nom sélectionné
+    const category = categories.find(cat => cat.name === selectedCategoryFilter);
+
+    if (!category) {
+      // Devrait être rare si les catégories sont bien chargées, mais retourne la liste vide en cas de non-concordance
+      return []; 
+    }
+
+    // 3. On filtre les contacts manuels en se basant sur **category_id** (qui est l'ID de la catégorie)
+    return contactManual.filter(contact => contact.category_id === category.id);
+  }, [contactManual, selectedCategoryFilter, categories]);
+
+
+  // 🔑 MODIFIÉ: S'assure que 'Toutes' est inclus dans les options de filtre
+  const filters = useMemo(() => [
+    { key: "source", label: "Source", options: ["Google Maps", "Phantombuster", "Manuel"] },
+    { key: "categorie", label: "Catégorie", options: ['Toutes', ...categories.map((c) => c.name)] },
+  ], [categories]);
+  
+
+  // --- GESTION DES CATÉGORIES (inchangé) ---
   const handleSaveCategory = async (name: string, color: string) => {
     try {
       if (editingCategory) {
@@ -164,7 +206,7 @@ const Contacts = () => {
     }
   };
 
-  // --- GESTION DES CONTACTS (Optimisé pour la robustesse) ---
+  // --- GESTION DES CONTACTS (inchangé, mais utilise les IDs) ---
 
   const handleAddContact = () => {
     setEditingContact(null);
@@ -179,7 +221,7 @@ const Contacts = () => {
         full_name: formData.full_name,
         email: formData.email,
         company: formData.company,
-        category_id: formData.category_id,
+        category_id: formData.category_id, // <-- Ceci est l'ID de la catégorie, c'est correct
         source: formData.source
       };
 
@@ -212,7 +254,7 @@ const Contacts = () => {
         setContactManual(prev => [finalContact, ...prev]);
       }
 
-      // LOGIQUE DE MISE À JOUR DU COMPTAGE DES CATÉGORIES
+      // LOGIQUE DE MISE À JOUR DU COMPTAGE DES CATÉGORIES (déjà fonctionnelle)
       setCategories(prevCategories => {
         return prevCategories.map(cat => {
           // 1. Décrémenter l'ancienne catégorie (si changement)
@@ -237,21 +279,17 @@ const Contacts = () => {
     }
   };
 
-  // 🔑 Fonction pour afficher la Popup de Modification (Corrigée et Sécurisée)
+  // 🔑 Fonction pour afficher la Popup de Modification (inchangé)
   const handleEditContact = (contact: any) => {
-    // 💡 Vérification pour garantir que l'ID existe avant l'ouverture
     if (!contact || !contact.id) {
       console.error("Opération annulée: Tentative de modification d'un contact sans ID valide.", contact);
       return;
     }
-    // 1. Définir le contact à éditer
     setEditingContact(contact);
-    // 2. Ouvrir la popup
     setIsContactPopupOpen(true);
   };
 
   const handleOpenDeleteContactPopup = (contact: any) => {
-    // 🔑 VÉRIFICATION STRICTE : Bloquer la suppression si ID manquant
     if (!contact || !contact.id) {
       console.error("Opération annulée: Tentative de suppression d'un contact sans ID valide.", contact);
       return;
@@ -261,7 +299,6 @@ const Contacts = () => {
   };
 
   const handleConfirmDeleteContact = async () => {
-    // 🔑 DOUBLE VÉRIFICATION CRITIQUE : Au cas où l'état contactToDelete a été altéré
     if (!contactToDelete || !contactToDelete.id) {
       console.error('Erreur Critique: ID du contact à supprimer manquant lors de la confirmation.', contactToDelete);
       setIsDeleteContactPopupOpen(false);
@@ -274,7 +311,7 @@ const Contacts = () => {
       await api.delete(`/b2b_manual/${contactToDelete.id}`);
       setContactManual(prev => prev.filter(c => c.id !== contactToDelete.id));
 
-      // LOGIQUE DE DÉCRÉMENTATION DU COMPTAGE
+      // LOGIQUE DE DÉCRÉMENTATION DU COMPTAGE (déjà fonctionnelle)
       const deletedCategoryId = contactToDelete.category_id;
       if (deletedCategoryId) {
         setCategories(prevCategories => {
@@ -296,6 +333,69 @@ const Contacts = () => {
     }
   };
 
+  // --- Rendu du contenu de la Card Catégorie (inchangé) ---
+  const renderCategoryContent = () => {
+    if (isCategoriesLoading) {
+      return (
+        <div className="flex-grow h-40 flex items-center justify-center p-6">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      );
+    }
+    
+    if (categories.length === 0) {
+      return (
+        <div className="flex-grow h-40 flex items-center justify-center p-6">
+           <p className="text-center text-sm text-muted-foreground">Aucune catégorie trouvée.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-grow h-40 space-y-3 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
+        {categories.map((cat: any) => (
+          <div
+            key={cat.id}
+            className="flex items-center justify-between p-3 border border-border rounded-lg group hover:bg-secondary/50 transition-colors relative"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`h-3 w-3 rounded-full ${cat.color}`} />
+              <span className="font-medium truncate max-w-[120px]">{cat.name}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Badge
+                variant="secondary"
+                className="transition-opacity duration-200 group-hover:opacity-0"
+              >
+                {cat.contact_count || 0}
+              </Badge>
+              <div className="absolute right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleEditCategory(cat)}
+                  title="Modifier la catégorie"
+                >
+                  <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleOpenDeletePopup(cat)}
+                  title="Supprimer la catégorie"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive/80 hover:text-destructive" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+// ---------------------------------------------
   return (
     <Layout title="Gestion des contacts">
       <style jsx global>{`
@@ -329,22 +429,32 @@ const Contacts = () => {
             onClick={() => {
               const triggerN8nFlow = async () => {
                 try {
+                  setLoading(true);
+                  setIsCategoriesLoading(true);
+                  
                   await api.post("https://wfw.omega-connect.tech/webhook-test/c9118e3f-fc01-478e-9031-a5a7dee8c53e", {
                     action: "sync_trigger",
                     source: "manual_button",
                     timestamp: new Date().toISOString()
                   });
-                  // Note: La détection des changements de données se fera par le rechargement
-                  // automatique du composant si le webhook n8n met à jour la base de données.
+                  
+                  const manualContacts = await fetchContactsManual();
+                  await fetchCategories(manualContacts);
+                  fetchContacts();
+
                 } catch (error) {
+                  console.error("Erreur lors de la synchronisation:", error);
+                } finally {
+                  setLoading(false); 
+                  setIsCategoriesLoading(false);
                 }
               }
               triggerN8nFlow();
             }}
             className="gap-2 ml-auto border-[#8675E1] border-2 text-[#8675E1]"
-            disabled={isCategoriesLoading}
+            disabled={isCategoriesLoading || loading}
           >
-            {isCategoriesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Synchroniser
+            {isCategoriesLoading || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Synchroniser
           </Button>
         </div>
 
@@ -355,57 +465,8 @@ const Contacts = () => {
               <CardTitle>Catégories</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col h-full p-0">
-              {isCategoriesLoading ? (
-                <div className="flex-grow h-40 flex items-center justify-center p-6">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : (
-                <div className="flex-grow h-40 space-y-3 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
-                  {categories.map((cat: any) => (
-                    <div
-                      key={cat.id}
-                      className="flex items-center justify-between p-3 border border-border rounded-lg group hover:bg-secondary/50 transition-colors relative"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`h-3 w-3 rounded-full ${cat.color}`} />
-                        <span className="font-medium truncate max-w-[120px]">{cat.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Badge
-                          variant="secondary"
-                          className="transition-opacity duration-200 group-hover:opacity-0"
-                        >
-                          {/* ✅ Affichage du compteur de contacts */}
-                          {cat.contact_count || 0}
-                        </Badge>
-                        <div className="absolute right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEditCategory(cat)}
-                            title="Modifier la catégorie"
-                          >
-                            <Edit className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleOpenDeletePopup(cat)}
-                            title="Supprimer la catégorie"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive/80 hover:text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {categories.length === 0 && (
-                    <p className="text-center text-sm text-muted-foreground pt-3">Aucune catégorie trouvée.</p>
-                  )}
-                </div>
-              )}
+                {renderCategoryContent()}
+
               <div className="p-6 pt-4 border-t border-border bg-card">
                 <Button
                   variant="outline"
@@ -428,47 +489,60 @@ const Contacts = () => {
             <DataTable
               title="Liste des contacts"
               columns={columns}
-              data={contactManual}
+              data={filteredContactManual} // ✅ Affiche maintenant les données filtrées
               filters={filters}
               searchPlaceholder="Rechercher par nom, email..."
               onEdit={handleEditContact}
               onDelete={handleOpenDeleteContactPopup}
               onAdd={handleAddContact}
+              onFilterChange={handleFilterChange} // ✅ Intercepte le changement de filtre
               isLoading={loading || isCategoriesLoading}
             />
           </div>
         </div>
+                {/* SECTION: Statistiques des sources */}
+<Card>
+  <CardHeader>
+    <CardTitle>Statistiques par Source</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {(loading || isCategoriesLoading) ? (
+        <div className="flex items-center justify-center min-h-[100px]">
+             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+    ) : (
+      (() => {
+        const phantombusterCount = contactManual.filter(
+          (c) => c.source?.toLowerCase() === "phantombuster"
+        ).length;
 
-        {/* SECTION: Statistiques des sources */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Statistiques par Source</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4 border border-border rounded-lg">
-                <h3 className="font-semibold text-lg">Google Maps</h3>
-                <p className="text-2xl font-bold text-primary mt-2">1,523</p>
-                <p className="text-sm text-muted-foreground">contacts</p>
-                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-              </div>
+        const manuelCount = contactManual.filter(
+          (c) =>
+            c.source?.toLowerCase() === "ajout manuel" ||
+            c.source?.toLowerCase() === "manuel"
+        ).length;
 
-              <div className="text-center p-4 border border-border rounded-lg">
-                <h3 className="font-semibold text-lg">Phantombuster</h3>
-                <p className="text-2xl font-bold text-primary mt-2">894</p>
-                <p className="text-sm text-muted-foreground">contacts</p>
-                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-              </div>
-
-              <div className="text-center p-4 border border-border rounded-lg">
-                <h3 className="font-semibold text-lg">Ajout Manuel</h3>
-                <p className="text-2xl font-bold text-primary mt-2">430</p>
-                <p className="text-sm text-muted-foreground">contacts</p>
-                <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-              </div>
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="text-center p-4 border border-border rounded-lg">
+              <h3 className="font-semibold text-lg">Phantombuster</h3>
+              <p className="text-2xl font-bold text-primary mt-2">{phantombusterCount}</p>
+              <p className="text-sm text-muted-foreground">contacts</p>
+              <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="text-center p-4 border border-border rounded-lg">
+              <h3 className="font-semibold text-lg">Ajout Manuel</h3>
+              <p className="text-2xl font-bold text-primary mt-2">{manuelCount}</p>
+              <p className="text-sm text-muted-foreground">contacts</p>
+              <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+            </div>
+          </div>
+        );
+      })()
+    )}
+  </CardContent>
+</Card>
 
         {/* Popups */}
         <CategoryPopup
@@ -481,7 +555,6 @@ const Contacts = () => {
           initialData={editingCategory}
         />
 
-        {/* 🔑 La ContactPopup est conditionnée par l'état isContactPopupOpen */}
         <ContactPopup
           isOpen={isContactPopupOpen}
           onClose={() => {
