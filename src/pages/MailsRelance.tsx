@@ -5,19 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { NouveauPromptPopup } from '@/components/mailaenvoyerpopup/NouveauPromptPopup';
-import { ModifierPromptPopup } from '@/components/mailaenvoyerpopup/ModifierPromptPopup';
-import { SupprimerPromptPopup } from '@/components/mailaenvoyerpopup/SupprimerPromptPopup';
-import { api } from '@/api/api';
+import { NouveauPromptPopup } from '@/components/mailrelancepopup/NouveauPromptPopup';
+import { ModifierPromptPopup } from '@/components/mailrelancepopup/ModifierPromptPopup';
+import { SupprimerPromptPopup } from '@/components/mailrelancepopup/SupprimerPromptPopup';
 import { DeleteMailConfirmationPopup } from '@/components/mailaenvoyerpopup/DeleteMailConfirmation';
+import { api } from '@/api/api';
 
 interface Prompt {
   id: number;
+  dateCreation?: string;
   nom: string;
   contenu: string;
   categorie: string;
   utilise: number;
-  dateCreation?: string;
+  statut: string
 }
 
 interface MailGenere {
@@ -46,8 +47,8 @@ const MailsAEnvoyer = () => {
   const [mailToDelete, setMailToDelete] = useState<MailGenere | null>(null);
 
   const [selectedPromptForFilter, setSelectedPromptForFilter] = useState<number | null>(null);
-  // État gérant l'accordéon des catégories
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({}); // Initialisation par défaut
+  // État gérant l'accordéon des statuts
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Record<string, boolean>>({});
 
   const [isPromptsLoading, setIsPromptsLoading] = useState(false);
   const [isMailsLoading, setIsMailsLoading] = useState(false);
@@ -58,8 +59,9 @@ const MailsAEnvoyer = () => {
     setIsPromptsLoading(true);
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/prompt?_t=${timestamp}`);
+      const res = await api.get(`/relance-prompt?_t=${timestamp}`);
       setPrompts(res.data);
+      
     } catch (err) {
       console.error('Erreur chargement prompts:', err);
       setError('Erreur lors du chargement des prompts');
@@ -72,7 +74,7 @@ const MailsAEnvoyer = () => {
     setIsMailsLoading(true);
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/mailsgeneres?_t=${timestamp}`);
+      const res = await api.get(`/relance-mailsgen?_t=${timestamp}`);
       setMailsGeneres(res.data);
       setError(null);
     } catch (err) {
@@ -88,19 +90,19 @@ const MailsAEnvoyer = () => {
     fetchMailsGeneres();
   }, []);
 
-  // Logique pour que toutes les catégories soient fermées au chargement (du code précédent)
+  // Logique pour que tous les statuts soient fermés au chargement
   useEffect(() => {
     if (prompts.length > 0) {
-      const categories = prompts.map(p => p.categorie || 'Non classé');
-      const uniqueCategories = Array.from(new Set(categories));
+      const statuses = prompts.map(p => p.statut || 'Non défini');
+      const uniqueStatuses = Array.from(new Set(statuses));
 
-      // Crée un objet où chaque catégorie est initialisée à 'true' (fermé/replié)
-      const initialCollapsedState: Record<string, boolean> = uniqueCategories.reduce((acc, category) => {
-        acc[category] = true;
+      // Crée un objet où chaque statut est initialisé à 'true' (fermé/replié)
+      const initialCollapsedState: Record<string, boolean> = uniqueStatuses.reduce((acc, status) => {
+        acc[status] = true;
         return acc;
       }, {} as Record<string, boolean>);
 
-      setCollapsedCategories(initialCollapsedState);
+      setCollapsedStatuses(initialCollapsedState);
     }
   }, [prompts]);
 
@@ -111,7 +113,6 @@ const MailsAEnvoyer = () => {
     setEditedSubject(mail.sujet);
   };
 
-  // 📝 Changement 1/3: handleValidateMail met le statut à 'Validé'
   const handleValidateMail = async (mail: MailGenere) => {
     try {
       setLoading(true);
@@ -131,11 +132,9 @@ const MailsAEnvoyer = () => {
     }
   };
 
-  // 📝 Changement 2/3: handleRejectMail (bouton X) met le statut à 'En attente'
   const handleRejectMail = async (mail: MailGenere) => {
     try {
       setLoading(true);
-      // Au lieu de 'Refusé', on met le statut à 'En attente'
       await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'En attente' });
 
       setMailsGeneres(prev =>
@@ -148,7 +147,6 @@ const MailsAEnvoyer = () => {
     }
   };
 
-  // Cette fonction reste inchangée (elle est gérée par handleRejectMail maintenant)
   const handlePendingMail = async (mail: MailGenere) => {
     try {
       setLoading(true);
@@ -164,11 +162,11 @@ const MailsAEnvoyer = () => {
     }
   };
 
-  // 📝 Changement 3/3: Nouvelle fonction pour supprimer un mail généré
   const handleDeleteMail = (mail: MailGenere) => {
     setMailToDelete(mail);
     setIsDeleteMailPopupOpen(true);
   };
+  
   const confirmDeleteMail = async () => {
     if (!mailToDelete) return;
 
@@ -268,17 +266,16 @@ const MailsAEnvoyer = () => {
     setSelectedPromptForFilter(promptId === selectedPromptForFilter ? null : promptId);
   };
 
-  // 🔄 Correction de handleResetFilter pour fermer tous les accordéons
   const handleResetFilter = () => {
     setSelectedPromptForFilter(null);
 
-    // Ferme tous les accordéons en définissant toutes les catégories à TRUE (replié)
-    const allCategoriesCollapsed = Object.keys(groupedPrompts).reduce((acc, category) => {
-      acc[category] = true;
+    // Ferme tous les accordéons en définissant tous les statuts à TRUE (replié)
+    const allStatusesCollapsed = Object.keys(groupedPrompts).reduce((acc, status) => {
+      acc[status] = true;
       return acc;
     }, {} as Record<string, boolean>);
 
-    setCollapsedCategories(allCategoriesCollapsed);
+    setCollapsedStatuses(allStatusesCollapsed);
   };
 
   const generetemails = (prompt: Prompt) => {
@@ -288,7 +285,7 @@ const MailsAEnvoyer = () => {
 
     try {
       setLoading(true);
-      const webhookUrl = 'https://wfw.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-c49f2db48b9001';
+      const webhookUrl = 'https://wfw.omega-connect.tech/webhook-test/53b181f1-7b25-4835-8509-relancemailsgen';
       api.post(webhookUrl, {
         prompt_id: prompt.id,
         nom: prompt.nom,
@@ -338,45 +335,36 @@ const MailsAEnvoyer = () => {
   };
 
   const shouldDisableValidate = (mail: MailGenere): boolean => {
-    // La validation est désactivée si le mail est déjà Validé OU si un autre mail de la même catégorie l'est.
     return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
   };
 
   const shouldDisableReject = (mail: MailGenere): boolean => {
-    // Le bouton X (rejet/retour en attente) est désactivé si le mail est déjà en attente (si la nouvelle logique est "retourner en attente")
-    // OU si un autre mail de la même catégorie est Validé.
     return (
       loading ||
-      mail.statut === 'En attente' || // Si on clique sur X, on veut le mettre en 'En attente'. Si c'est déjà 'En attente', on désactive.
+      mail.statut === 'En attente' ||
       isCategoryValidated(mail.categorie, mail.id)
     );
   };
 
-  // NOUVELLE FONCTION : Désactiver le bouton de suppression
   const shouldDisableDelete = (mail: MailGenere): boolean => {
-    // Le bouton de suppression est désactivé si:
-    // 1. Le mail est en cours de chargement
-    // 2. Le mail est validé
-    // 3. Un autre mail de la même catégorie est validé
     return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
   };
 
   const groupedPrompts = useMemo(() => {
     return prompts.reduce((acc, prompt) => {
-      const category = prompt.categorie || 'Non classé';
-      if (!acc[category]) {
-        acc[category] = [];
+      const status = prompt.statut || 'Non défini';
+      if (!acc[status]) {
+        acc[status] = [];
       }
-      acc[category].push(prompt);
+      acc[status].push(prompt);
       return acc;
     }, {} as Record<string, Prompt[]>);
   }, [prompts]);
 
-  const toggleCategory = (category: string) => {
-    setCollapsedCategories(prev => ({
+  const toggleStatus = (status: string) => {
+    setCollapsedStatuses(prev => ({
       ...prev,
-      // La logique de bascule est la bonne : !prev[category]
-      [category]: !prev[category],
+      [status]: !prev[status],
     }));
   };
 
@@ -446,27 +434,26 @@ const MailsAEnvoyer = () => {
                       }`}
                   >
                     <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Tous les mails</h4>
+                      <h4 className="font-medium">Tous les Prompts</h4>
                       <Badge variant={selectedPromptForFilter === null ? "default" : "outline"}>
                         {mailsGeneres.length}
                       </Badge>
                     </div>
                   </div>
 
-                  {/* Catégories et prompts */}
-                  {Object.entries(groupedPrompts).map(([category, promptsList]) => {
-                    // Vérifie si la catégorie est repliée (true = fermé, false = ouvert)
-                    const isCollapsed = collapsedCategories[category];
+                  {/* Statuts et prompts */}
+                  {Object.entries(groupedPrompts).map(([status, promptsList]) => {
+                    const isCollapsed = collapsedStatuses[status];
                     return (
-                      <div key={category} className="border-b last:border-b-0">
-                        {/* En-tête de catégorie */}
+                      <div key={status} className="border-b last:border-b-0">
+                        {/* En-tête de statut */}
                         <div
                           className="p-4 border-b cursor-pointer transition-colors hover:bg-muted/50 flex items-center justify-between"
-                          onClick={() => toggleCategory(category)}
+                          onClick={() => toggleStatus(status)}
                         >
                           <div className='flex items-center gap-2'>
                             <h3 className="font-semibold text-sm">
-                              {category}
+                              {status}
                             </h3>
                             <Badge variant="outline" className="text-xs">
                               {promptsList.length}
@@ -616,7 +603,6 @@ const MailsAEnvoyer = () => {
                             </div>
 
                             <div className="flex items-center gap-1">
-                              {/* Bouton Voir */}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -627,7 +613,6 @@ const MailsAEnvoyer = () => {
                                 <Eye className="h-3 w-3" />
                               </Button>
 
-                              {/* Bouton Valider (Check) */}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -638,18 +623,16 @@ const MailsAEnvoyer = () => {
                                 <Check className="h-3 w-3" />
                               </Button>
 
-                              {/* Bouton Rejeter/Retour En Attente (X) */}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleRejectMail(mail)} // Utilise la fonction modifiée pour mettre en 'En attente'
+                                onClick={() => handleRejectMail(mail)}
                                 className="h-6 px-2"
                                 disabled={shouldDisableReject(mail)}
                               >
                                 <X className="h-3 w-3" />
                               </Button>
 
-                              {/* Bouton Supprimer (Trash2) - NOUVEAU */}
                               <Button
                                 size="sm"
                                 variant="outline"
