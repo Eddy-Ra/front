@@ -100,6 +100,7 @@ const EnvoiMasse = () => {
   //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
   //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/simulate-progress';
   const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook/simulate-progress';
+  const WEBHOOK_URL_RELANCE = 'https://wfw.omega-connect.tech/webhook/simulate-progress-relance';
 
   
 
