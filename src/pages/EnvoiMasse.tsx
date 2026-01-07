@@ -74,7 +74,7 @@ interface realtimestatus {
   category: string;
   company: string;
   details?: string;
-  is_to_display_now:boolean;
+  is_to_display_now: boolean;
 }
 
 
@@ -88,13 +88,14 @@ const EnvoiMasse = () => {
   const [selectedCategory, setSelectedCategory] = useState<MessageCategory | null>(null);
   const [editingLimit, setEditingLimit] = useState<number | null>(null);
   const [tempLimit, setTempLimit] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<B2b_manual[]>([]);
   const [historique, sethistorique] = useState<historique[]>([]);
   const [statusMails, setstatusMails] = useState<realtimestatus[]>([]);
-  
+  const [searchQuery, setSearchQuery] = useState('');
+
 
 
   //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
@@ -102,10 +103,10 @@ const EnvoiMasse = () => {
   const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook/simulate-progress';
   const WEBHOOK_URL_RELANCE = 'https://wfw.omega-connect.tech/webhook/simulate-progress-relance';
 
-  
+
 
   //{ email: 'jean.dupont@entreprise.com', statut: 'Envoyé', timestamp: '09:32:15', category: 'Tech Startups' },
-  
+
 
   const fetchRealTimeStatus = async () => {
     try {
@@ -121,7 +122,7 @@ const EnvoiMasse = () => {
       return [];
     }
   };
-  
+
 
   const fetchHistory = async () => {
     try {
@@ -133,7 +134,7 @@ const EnvoiMasse = () => {
       return [];
     }
   };
-  fetchHistory();
+
   const fetchContacts = async () => {
     try {
       const res = await api.get("/b2b_manual");
@@ -145,13 +146,13 @@ const EnvoiMasse = () => {
     }
   };
 
-  const fetchCatById = async (id: string) => {
+  const fetchCategories = async () => {
     try {
-      const res = await api.get("/categories/" + id);
+      const res = await api.get("/categories");
       return res.data;
     } catch (err) {
-      console.error("Erreur chargement catégorie:", err);
-      return null;
+      console.error("Erreur chargement catégories:", err);
+      return [];
     }
   };
 
@@ -172,39 +173,34 @@ const EnvoiMasse = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        setLoading(true); // Ensure loading is true at the start of data fetching
         fetchRealTimeStatus();
-        
-        setLoading(true);
+        fetchHistory(); // Added fetchHistory here
 
         // 1. Charger les données initiales en parallèle
-        const [contactsData, mailsData] = await Promise.all([
+        // 1. Charger les données initiales en parallèle
+        const [contactsData, mailsData, categoriesData] = await Promise.all([
           fetchContacts(),
-          fetchMailsGeneres()
+          fetchMailsGeneres(),
+          fetchCategories()
         ]);
-        
-        // 2. Identifier tous les IDs de catégorie uniques nécessaires
-        const categoryIds = Array.from(new Set(contactsData.map(c => c.category_id)));
-
-        const categoryPromises = categoryIds.map(id => fetchCatById(id));
-        const categoriesResolved = await Promise.all(categoryPromises);
 
         const categoryMap = new Map();
-        categoriesResolved.forEach(cat => {
-            // cat est l'objet résolu: { id: ..., name: "Hôtellerie & Tourisme", ... }
-            categoryMap.set(cat.id, cat); 
+        categoriesData.forEach((cat: any) => {
+          categoryMap.set(cat.id, cat);
         });
 
 
         const mCD: MessageCategory[] = [];
 
         mailsData.forEach((mail: MailGenere) => {
-          
+
           // 5. Utiliser la Map (Opération synchrone !) dans le .filter()
           const contactInfo: Contact[] = contactsData
             .filter((contact: B2b_manual) => {
               // Récupération SYNCHRONE du nom de la catégorie depuis la Map
-              const contactCategory = categoryMap.get(contact.category_id); 
-              
+              const contactCategory = categoryMap.get(contact.category_id);
+
               // Vérifie si la catégorie existe et si le nom correspond au mail
               return contactCategory && contactCategory.name === mail.categorie;
             })
@@ -215,9 +211,9 @@ const EnvoiMasse = () => {
               email: contact.email,
               company: contact.company,
               // Optionnel: On peut maintenant inclure le nom de la catégorie résolu ici aussi
-              category: categoryMap.get(contact.category_id)?.name || 'Inconnue' 
+              category: categoryMap.get(contact.category_id)?.name || 'Inconnue'
             }));
-            
+
           // Le reste de la logique de construction de mailInfo reste inchangé
           const mailInfo: MessageCategory = {
             id: mail.id,
@@ -234,7 +230,7 @@ const EnvoiMasse = () => {
         });
 
         setMessagesCategories(mCD);
-        
+
         if (mCD.length > 0) {
           setSelectedCategory(mCD[0]);
         }
@@ -260,7 +256,7 @@ const EnvoiMasse = () => {
   const handleSendIndividual = async (contactId: number, categoryId: number) => {
     const category = messagesCategories.find(cat => cat.id === categoryId);
     const contact = category?.contacts.find(c => c.id === contactId);
-    
+
     if (!category || !contact) {
       toast({
         title: "Erreur",
@@ -271,8 +267,7 @@ const EnvoiMasse = () => {
     }
 
     try {
-      setLoading(true);
-      
+
       await api.post(WEBHOOK_URL, {
         mode: 'send_individual',
         category_id: category.id,
@@ -299,141 +294,137 @@ const EnvoiMasse = () => {
         description: "Impossible d'envoyer l'email",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleSendCategoryBatch = async (categoryId: number) => {
-  const category = messagesCategories.find(cat => cat.id === categoryId);
+    const category = messagesCategories.find(cat => cat.id === categoryId);
 
-  if (!category) {
-    toast({
-      title: "Erreur",
-      description: "Catégorie introuvable",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  // État initial : on démarre l’envoi
-  setMessagesCategories(prev =>
-    prev.map(cat =>
-      cat.id === categoryId ? { ...cat, isSending: true, progress: 0 } : cat
-    )
-  );
-
-  // Compteur initial envoyé à n8n
-  const identifiant_unique=`batch-${category.id}-${Date.now()}`
-  let compteur = 0;
-  const totalContacts = category.contacts.length;
-  const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook/realtime";//prod
-  //const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook-test/realtime";
-  const reponse = await api.post(webhookUrl_realtime, {
-    contacts: category.contacts,
-    contacts_len: totalContacts,
-    identifiant_unique: identifiant_unique
-  });  
-  console.log(reponse.data);
-  
-  fetchRealTimeStatus();
-
-  // Boucle sur tous les contacts
-  const timestamp = new Date().toISOString()
-  for (let i = 0; i < totalContacts; i++) {
-    try { 
-      setLoading(true);
-      const contact = category.contacts[i];
-
-      console.log(`📤 Lancement du webhook pour contact ${i + 1}/${totalContacts}`);
-
-      // 🟢 Étape 1 : envoi au webhook N8N
-      const response = await api.post(WEBHOOK_URL, {
-        mode: "send_batch",
-        category_id: category.id,
-        category_name: category.name,
-        message_title: category.messageTitle,
-        message_content: category.messageContent,
-        contact, // un seul contact par itération
-        limit: totalContacts, // valeur max pour le workflow
-        compteur, // compteur actuel
-        timestamp: timestamp,
-        identifiant_unique: identifiant_unique
-      });
-
-      // 🟢 Étape 2 : on attend la réponse de N8N (Respond to Webhook1)
-      const data = response.data;
-      console.log("Réponse N8N :", data);
-
-      // 🔹 Mise à jour du compteur (renvoyé par N8N)
-      compteur = data.compteur + 1;
-      
-
-      // 🔹 Calcul de la progression
-      const progress = Math.min(
-        Math.round((compteur / totalContacts) * 100),
-        100
-      );
-      
-
-      // 🔹 Mise à jour du state React
-      setMessagesCategories(prev =>
-        prev.map(cat =>
-          cat.id === categoryId
-            ? { ...cat, progress, isSending: progress < 100 }
-            : cat
-        )
-      );
-
-      // 🔹 Notification de progression
+    if (!category) {
       toast({
-        title: `Progression ${progress}%`,
-        description: `Contact ${i + 1}/${totalContacts} traité (${data.status})`,
-      });
-
-      // 🕐 Petit délai pour lisser la charge serveur
-      await new Promise(res => setTimeout(res, 300));
-
-      // 🛑 Si le workflow renvoie "stop", on sort
-      if (data.status === "stop") {
-        console.log("🛑 Workflow terminé selon N8N");
-        break;
-      }
-    } catch (error) {
-      console.error("❌ Erreur d’envoi :", error);
-      toast({
-        title: "Erreur d’envoi",
-        description: "Impossible de lancer l’envoi en lot",
+        title: "Erreur",
+        description: "Catégorie introuvable",
         variant: "destructive",
       });
-      break; // on arrête la boucle en cas d’erreur
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    // État initial : on démarre l’envoi
+    setMessagesCategories(prev =>
+      prev.map(cat =>
+        cat.id === categoryId ? { ...cat, isSending: true, progress: 0 } : cat
+      )
+    );
+
+    // Compteur initial envoyé à n8n
+    const identifiant_unique = `batch-${category.id}-${Date.now()}`
+    let compteur = 0;
+    const totalContacts = category.contacts.length;
+    const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook/realtime";//prod
+    //const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook-test/realtime";
+    const reponse = await api.post(webhookUrl_realtime, {
+      contacts: category.contacts,
+      contacts_len: totalContacts,
+      identifiant_unique: identifiant_unique
+    });
+    console.log(reponse.data);
+
     fetchRealTimeStatus();
-    
-  }
+
+    // Boucle sur tous les contacts
+    const timestamp = new Date().toISOString()
+    for (let i = 0; i < totalContacts; i++) {
+      try {
+
+        const contact = category.contacts[i];
+
+        console.log(`📤 Lancement du webhook pour contact ${i + 1}/${totalContacts}`);
+
+        // 🟢 Étape 1 : envoi au webhook N8N
+        const response = await api.post(WEBHOOK_URL, {
+          mode: "send_batch",
+          category_id: category.id,
+          category_name: category.name,
+          message_title: category.messageTitle,
+          message_content: category.messageContent,
+          contact, // un seul contact par itération
+          limit: totalContacts, // valeur max pour le workflow
+          compteur, // compteur actuel
+          timestamp: timestamp,
+          identifiant_unique: identifiant_unique
+        });
+
+        // 🟢 Étape 2 : on attend la réponse de N8N (Respond to Webhook1)
+        const data = response.data;
+        console.log("Réponse N8N :", data);
+
+        // 🔹 Mise à jour du compteur (renvoyé par N8N)
+        compteur = data.compteur + 1;
+
+
+        // 🔹 Calcul de la progression
+        const progress = Math.min(
+          Math.round((compteur / totalContacts) * 100),
+          100
+        );
+
+
+        // 🔹 Mise à jour du state React
+        setMessagesCategories(prev =>
+          prev.map(cat =>
+            cat.id === categoryId
+              ? { ...cat, progress, isSending: progress < 100 }
+              : cat
+          )
+        );
+
+        // 🔹 Notification de progression
+        toast({
+          title: `Progression ${progress}%`,
+          description: `Contact ${i + 1}/${totalContacts} traité. Statut: ${data.status}`,
+        });
+
+        // 🕐 Petit délai pour lisser la charge serveur
+        await new Promise(res => setTimeout(res, 300));
+
+        // 🛑 Si le workflow renvoie "stop", on sort
+        if (data.status === "stop") {
+          console.log("🛑 Workflow terminé selon N8N");
+          break;
+        }
+      } catch (error) {
+        console.error("❌ Erreur d’envoi :", error);
+        toast({
+          title: "Erreur d’envoi",
+          description: "Impossible de lancer l’envoi en lot",
+          variant: "destructive",
+        });
+        break; // on arrête la boucle en cas d’erreur
+      }
+      fetchRealTimeStatus();
+
+    }
     fetchHistory();
     fetchRealTimeStatus();
     // Actualisation finale du statut en temps réel dans 16 minutes
     setTimeout(() => {
       fetchRealTimeStatus();
     }, 16 * 60 * 1000); // 15 minutes
-  // ✅ Fin de boucle
-  toast({
-    title: "Envoi terminé",
-    description: `Tous les contacts de la catégorie "${category.name}" ont été traités.`,
-  });
+    // ✅ Fin de boucle
+    toast({
+      title: "Envoi terminé",
+      description: `Tous les contacts de la catégorie "${category.name}" ont été traités.`,
+    });
 
-  // Mise à jour finale
-  setMessagesCategories(prev =>
-    prev.map(cat =>
-      cat.id === categoryId
-        ? { ...cat, isSending: false, progress: 100 }
-        : cat
-    )
-  );
-};
+    // Mise à jour finale
+    setMessagesCategories(prev =>
+      prev.map(cat =>
+        cat.id === categoryId
+          ? { ...cat, isSending: false, progress: 100 }
+          : cat
+      )
+    );
+  };
 
 
 
@@ -493,7 +484,7 @@ const EnvoiMasse = () => {
     }
   };
 
-  if (!selectedCategory) {
+  if (loading) {
     return (
       <Layout title="Envoi en masse">
         <div className="flex items-center justify-center h-64">
@@ -503,465 +494,486 @@ const EnvoiMasse = () => {
     );
   }
 
+  if (!selectedCategory) {
+    return (
+      <Layout title="Envoi en masse">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Aucune catégorie trouvée ou aucun mail généré.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Envoi en masse">
       <div className="space-y-6">
-        
-      <Tabs defaultValue="utilisateurs" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="utilisateurs">Envoie en masse</TabsTrigger>
-          <TabsTrigger value="parametres">Envoie en masse relance</TabsTrigger>
-        </TabsList>
+
+        <Tabs defaultValue="utilisateurs" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="utilisateurs">Envoie en masse</TabsTrigger>
+            <TabsTrigger value="parametres">Envoie en masse relance</TabsTrigger>
+          </TabsList>
 
 
-        <div className="h-4" />
-        <TabsContent value="utilisateurs" className="mt-6">
-        
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <List className="h-5 w-5" />
-                Messages par Catégorie
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ScrollArea className="h-64 pr-4">
-                
-                {messagesCategories.map((cat) => (
-                  <div 
-                    key={cat.id} 
-                    className={`p-3 border rounded-lg w-[383px] cursor-pointer transition-colors mb-2 ${
-                      selectedCategory.id === cat.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedCategory(cat)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold truncate">{cat.name} ({cat.contacts.length} contacts)</span>
-                      <div className="flex items-center gap-2">
-                        {editingLimit === cat.id ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={tempLimit}
-                              onChange={(e) => setTempLimit(e.target.value)}
-                              className="w-16 h-6 text-xs"
-                              min="1"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveLimit(cat.id);
-                                if (e.key === 'Escape') handleCancelEdit();
-                              }}
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-green-600 hover:text-white"
-                              onClick={() => handleSaveLimit(cat.id)}
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={handleCancelEdit}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+          <div className="h-4" />
+          <TabsContent value="utilisateurs" className="mt-6">
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <List className="h-5 w-5" />
+                    Messages par Catégorie
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <ScrollArea className="h-64 pr-4">
+
+                    {messagesCategories.map((cat) => (
+                      <div
+                        key={cat.id}
+                        className={`p-3 border rounded-lg w-[383px] cursor-pointer transition-colors mb-2 ${selectedCategory.id === cat.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                          }`}
+                        onClick={() => setSelectedCategory(cat)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold truncate">{cat.name} ({cat.contacts.length} contacts)</span>
+                          <div className="flex items-center gap-2">
+                            {editingLimit === cat.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={tempLimit}
+                                  onChange={(e) => setTempLimit(e.target.value)}
+                                  className="w-16 h-6 text-xs"
+                                  min="1"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveLimit(cat.id);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-green-600 hover:text-white"
+                                  onClick={() => handleSaveLimit(cat.id)}
+                                >
+                                  <Save className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                  onClick={handleCancelEdit}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Badge variant="secondary" className="font-normal">
+                                  Max: {cat.limit}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-primary hover:text-primary-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartEditLimit(cat.id, cat.limit);
+                                  }}
+                                  disabled={isRunning || cat.isSending || loading}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Badge variant="secondary" className="font-normal">
-                              Max: {cat.limit}
-                            </Badge>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-primary hover:text-primary-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEditLimit(cat.id, cat.limit);
-                              }}
-                              disabled={isRunning || cat.isSending || loading}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate italic w-[350px]">
-                        Sujet: {cat.messageTitle}
-                    </p>
-                    <div className="mt-2">
-                        {cat.isSending ? (
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate italic w-[350px]">
+                          Sujet: {cat.messageTitle}
+                        </p>
+                        <div className="mt-2">
+                          {cat.isSending ? (
                             <Progress value={cat.progress} className="h-2" />
-                        ) : (
+                          ) : (
                             <Button
-                                size="sm"
-                                className="w-full h-8 gap-1"
-                                onClick={(e) => { e.stopPropagation(); handleSendCategoryBatch(cat.id); }}
-                                disabled={isRunning || cat.isSending || cat.contacts.length === 0 || loading}
+                              size="sm"
+                              className="w-full h-8 gap-1"
+                              onClick={(e) => { e.stopPropagation(); handleSendCategoryBatch(cat.id); }}
+                              disabled={isRunning || cat.isSending || cat.contacts.length === 0 || loading}
                             >
-                                <Play className="h-3 w-3" />
-                                Envoyer en lot ({cat.contacts.length})
+                              <Play className="h-3 w-3" />
+                              Envoyer en lot ({cat.contacts.length})
                             </Button>
-                        )}
-                    </div>
-                  </div>
-                ))}
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
 
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Détails de l'Envoi: {selectedCategory.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="p-3 border rounded-lg bg-secondary/20">
+              <Card className="lg:col-span-3">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Détails de l'Envoi: {selectedCategory.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-3 border rounded-lg bg-secondary/20">
                     <p className="font-semibold mb-1 truncate">Sujet: {selectedCategory.messageTitle}</p>
                     <p className="text-sm text-muted-foreground line-clamp-2">{selectedCategory.messageContent}</p>
-                </div>
+                  </div>
 
-                <h3 className="text-md font-semibold mt-4">Contacts à cibler ({selectedCategory.contacts.length})</h3>
-                <ScrollArea className="h-48 pr-4">
+                  <h3 className="text-md font-semibold mt-4">Contacts à cibler ({selectedCategory.contacts.length})</h3>
+                  <div className="my-2">
+                    <Input
+                      placeholder="Rechercher un contact..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <ScrollArea className="h-48 pr-4">
                     <div className="space-y-2">
-                        {selectedCategory.contacts.map((contact) => (
-                            <div key={contact.id} className="flex items-center justify-between p-2 border rounded-md">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium truncate">{contact.full_name} ({contact.company})</p>
-                                    <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
-                                </div>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 ml-2 flex-shrink-0 gap-1"
-                                    onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
-                                    disabled={isRunning || selectedCategory.isSending || loading}
-                                >
-                                    <Send className="h-3 w-3" />
-                                    1 par 1
-                                </Button>
+                      {selectedCategory.contacts
+                        .filter(contact =>
+                          (contact.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (contact.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (contact.company || '').toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map((contact) => (
+                          <div key={contact.id} className="flex items-center justify-between p-2 border rounded-md">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{contact.full_name} ({contact.company})</p>
+                              <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
                             </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 ml-2 flex-shrink-0 gap-1"
+                              onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
+                              disabled={isRunning || selectedCategory.isSending || loading}
+                            >
+                              <Send className="h-3 w-3" />
+                              1 par 1
+                            </Button>
+                          </div>
                         ))}
                     </div>
-                </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="h-4" />
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Statuts en temps réel</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80 pr-4">
-                <div className="space-y-3">
-                  {statusMails.map((mail, index) => ( 
-                    (mail.is_to_display_now==true)? <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="h-4" />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Statuts en temps réel</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-80 pr-4">
+                    <div className="space-y-3">
+                      {statusMails.map((mail, index) => (
+                        (mail.is_to_display_now == true) ? <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                               {getStatusIcon(mail.statut)}
                               <span className="text-sm font-medium truncate">{mail.email}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
                               <Badge variant="secondary" className="font-normal">{mail.category}</Badge>
                               <span className={getStatusColor(mail.statut)}>{mail.statut}</span>
+                            </div>
                           </div>
-                      </div>
-                      <div className="flex justify-between items-center text-xs mt-1 pl-7">
-                          {mail.details && <span className="text-destructive italic">{mail.details}</span>}
-                          {mail.created_at !== '-' && (
+                          <div className="flex justify-between items-center text-xs mt-1 pl-7">
+                            {mail.details && <span className="text-destructive italic">{mail.details}</span>}
+                            {mail.created_at !== '-' && (
                               <span className="text-muted-foreground ml-auto">{mail.created_at}</span>
-                          )}
-                      </div>
-                    </div>:<></>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Historique des envois
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80 pr-4">
-                <div className="space-y-4">
-                  {historique.map((envoi) => (
-                    <div key={envoi.id} className="p-4 border border-border rounded-lg bg-card hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{envoi.date}</span>
-                        <Badge 
-                          variant={envoi.statut === 'Terminé' ? 'default' : 'destructive'}
-                          className={envoi.statut === 'Terminé' ? 'bg-green-600 text-white' : ''}
-                        >
-                          {envoi.statut}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium">{envoi.totalMails}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Envoyés</p>
-                          <p className="font-medium text-green-600">{envoi.envoyes}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Erreurs</p>
-                          <p className="font-medium text-destructive">{envoi.erreurs}</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border">
-                        <strong>Détails</strong>: {envoi.details}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Durée: {envoi.duree}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-        </TabsContent>
-        <TabsContent value="parametres" className="mt-6">
-        
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <List className="h-5 w-5" />
-                Messages par Catégorie
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ScrollArea className="h-64 pr-4">
-                
-                {messagesCategories.map((cat) => (
-                  <div 
-                    key={cat.id} 
-                    className={`p-3 border rounded-lg w-[383px] cursor-pointer transition-colors mb-2 ${
-                      selectedCategory.id === cat.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedCategory(cat)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold truncate">{cat.name} ({cat.contacts.length} contacts)</span>
-                      <div className="flex items-center gap-2">
-                        {editingLimit === cat.id ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={tempLimit}
-                              onChange={(e) => setTempLimit(e.target.value)}
-                              className="w-16 h-6 text-xs"
-                              min="1"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveLimit(cat.id);
-                                if (e.key === 'Escape') handleCancelEdit();
-                              }}
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-green-600 hover:text-white"
-                              onClick={() => handleSaveLimit(cat.id)}
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={handleCancelEdit}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Badge variant="secondary" className="font-normal">
-                              Max: {cat.limit}
+                        </div> : <></>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Historique des envois
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-80 pr-4">
+                    <div className="space-y-4">
+                      {historique.map((envoi) => (
+                        <div key={envoi.id} className="p-4 border border-border rounded-lg bg-card hover:shadow-lg transition-shadow">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">{envoi.date}</span>
+                            <Badge
+                              variant={envoi.statut === 'Terminé' ? 'default' : 'destructive'}
+                              className={envoi.statut === 'Terminé' ? 'bg-green-600 text-white' : ''}
+                            >
+                              {envoi.statut}
                             </Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Total</p>
+                              <p className="font-medium">{envoi.totalMails}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Envoyés</p>
+                              <p className="font-medium text-green-600">{envoi.envoyes}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Erreurs</p>
+                              <p className="font-medium text-destructive">{envoi.erreurs}</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border">
+                            <strong>Détails</strong>: {envoi.details}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Durée: {envoi.duree}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          <TabsContent value="parametres" className="mt-6">
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <List className="h-5 w-5" />
+                    Messages par Catégorie
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <ScrollArea className="h-64 pr-4">
+
+                    {messagesCategories.map((cat) => (
+                      <div
+                        key={cat.id}
+                        className={`p-3 border rounded-lg w-[383px] cursor-pointer transition-colors mb-2 ${selectedCategory.id === cat.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                          }`}
+                        onClick={() => setSelectedCategory(cat)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold truncate">{cat.name} ({cat.contacts.length} contacts)</span>
+                          <div className="flex items-center gap-2">
+                            {editingLimit === cat.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={tempLimit}
+                                  onChange={(e) => setTempLimit(e.target.value)}
+                                  className="w-16 h-6 text-xs"
+                                  min="1"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveLimit(cat.id);
+                                    if (e.key === 'Escape') handleCancelEdit();
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-green-600 hover:text-white"
+                                  onClick={() => handleSaveLimit(cat.id)}
+                                >
+                                  <Save className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                  onClick={handleCancelEdit}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Badge variant="secondary" className="font-normal">
+                                  Max: {cat.limit}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 hover:bg-primary hover:text-primary-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartEditLimit(cat.id, cat.limit);
+                                  }}
+                                  disabled={isRunning || cat.isSending || loading}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate italic w-[350px]">
+                          Sujet: {cat.messageTitle}
+                        </p>
+                        <div className="mt-2">
+                          {cat.isSending ? (
+                            <Progress value={cat.progress} className="h-2" />
+                          ) : (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-primary hover:text-primary-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEditLimit(cat.id, cat.limit);
-                              }}
-                              disabled={isRunning || cat.isSending || loading}
+                              className="w-full h-8 gap-1"
+                              onClick={(e) => { e.stopPropagation(); handleSendCategoryBatch(cat.id); }}
+                              disabled={isRunning || cat.isSending || cat.contacts.length === 0 || loading}
                             >
-                              <Edit className="h-3 w-3" />
+                              <Play className="h-3 w-3" />
+                              Envoyer en lot ({cat.contacts.length})
                             </Button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate italic w-[350px]">
-                        Sujet: {cat.messageTitle}
-                    </p>
-                    <div className="mt-2">
-                        {cat.isSending ? (
-                            <Progress value={cat.progress} className="h-2" />
-                        ) : (
-                            <Button
-                                size="sm"
-                                className="w-full h-8 gap-1"
-                                onClick={(e) => { e.stopPropagation(); handleSendCategoryBatch(cat.id); }}
-                                disabled={isRunning || cat.isSending || cat.contacts.length === 0 || loading}
-                            >
-                                <Play className="h-3 w-3" />
-                                Envoyer en lot ({cat.contacts.length})
-                            </Button>
-                        )}
-                    </div>
-                  </div>
-                ))}
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                    ))}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
 
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Détails de l'Envoi: {selectedCategory.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="p-3 border rounded-lg bg-secondary/20">
+              <Card className="lg:col-span-3">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Détails de l'Envoi: {selectedCategory.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-3 border rounded-lg bg-secondary/20">
                     <p className="font-semibold mb-1 truncate">Sujet: {selectedCategory.messageTitle}</p>
                     <p className="text-sm text-muted-foreground line-clamp-2">{selectedCategory.messageContent}</p>
-                </div>
+                  </div>
 
-                <h3 className="text-md font-semibold mt-4">Contacts à cibler ({selectedCategory.contacts.length})</h3>
-                <ScrollArea className="h-48 pr-4">
+                  <h3 className="text-md font-semibold mt-4">Contacts à cibler ({selectedCategory.contacts.length})</h3>
+                  <ScrollArea className="h-48 pr-4">
                     <div className="space-y-2">
-                        {selectedCategory.contacts.map((contact) => (
-                            <div key={contact.id} className="flex items-center justify-between p-2 border rounded-md">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium truncate">{contact.full_name} ({contact.company})</p>
-                                    <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
-                                </div>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 ml-2 flex-shrink-0 gap-1"
-                                    onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
-                                    disabled={isRunning || selectedCategory.isSending || loading}
-                                >
-                                    <Send className="h-3 w-3" />
-                                    1 par 1
-                                </Button>
-                            </div>
-                        ))}
+                      {selectedCategory.contacts.map((contact) => (
+                        <div key={contact.id} className="flex items-center justify-between p-2 border rounded-md">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{contact.full_name} ({contact.company})</p>
+                            <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 ml-2 flex-shrink-0 gap-1"
+                            onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
+                            disabled={isRunning || selectedCategory.isSending || loading}
+                          >
+                            <Send className="h-3 w-3" />
+                            1 par 1
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="h-4" />
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Statuts en temps réel</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80 pr-4">
-                <div className="space-y-3">
-                  {statusMails.map((mail, index) => ( 
-                    (mail.is_to_display_now==true)? <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="h-4" />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Statuts en temps réel</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-80 pr-4">
+                    <div className="space-y-3">
+                      {statusMails.map((mail, index) => (
+                        (mail.is_to_display_now == true) ? <div key={index} className="flex flex-col p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                               {getStatusIcon(mail.statut)}
                               <span className="text-sm font-medium truncate">{mail.email}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
                               <Badge variant="secondary" className="font-normal">{mail.category}</Badge>
                               <span className={getStatusColor(mail.statut)}>{mail.statut}</span>
+                            </div>
                           </div>
-                      </div>
-                      <div className="flex justify-between items-center text-xs mt-1 pl-7">
-                          {mail.details && <span className="text-destructive italic">{mail.details}</span>}
-                          {mail.created_at !== '-' && (
+                          <div className="flex justify-between items-center text-xs mt-1 pl-7">
+                            {mail.details && <span className="text-destructive italic">{mail.details}</span>}
+                            {mail.created_at !== '-' && (
                               <span className="text-muted-foreground ml-auto">{mail.created_at}</span>
-                          )}
-                      </div>
-                    </div>:<></>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Historique des envois
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80 pr-4">
-                <div className="space-y-4">
-                  {historique.map((envoi) => (
-                    <div key={envoi.id} className="p-4 border border-border rounded-lg bg-card hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{envoi.date}</span>
-                        <Badge 
-                          variant={envoi.statut === 'Terminé' ? 'default' : 'destructive'}
-                          className={envoi.statut === 'Terminé' ? 'bg-green-600 text-white' : ''}
-                        >
-                          {envoi.statut}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium">{envoi.totalMails}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Envoyés</p>
-                          <p className="font-medium text-green-600">{envoi.envoyes}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Erreurs</p>
-                          <p className="font-medium text-destructive">{envoi.erreurs}</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border">
-                        <strong>Détails</strong>: {envoi.details}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Durée: {envoi.duree}
-                      </p>
+                            )}
+                          </div>
+                        </div> : <></>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-        </TabsContent>
-      </Tabs>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Historique des envois
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-80 pr-4">
+                    <div className="space-y-4">
+                      {historique.map((envoi) => (
+                        <div key={envoi.id} className="p-4 border border-border rounded-lg bg-card hover:shadow-lg transition-shadow">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">{envoi.date}</span>
+                            <Badge
+                              variant={envoi.statut === 'Terminé' ? 'default' : 'destructive'}
+                              className={envoi.statut === 'Terminé' ? 'bg-green-600 text-white' : ''}
+                            >
+                              {envoi.statut}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Total</p>
+                              <p className="font-medium">{envoi.totalMails}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Envoyés</p>
+                              <p className="font-medium text-green-600">{envoi.envoyes}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Erreurs</p>
+                              <p className="font-medium text-destructive">{envoi.erreurs}</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border">
+                            <strong>Détails</strong>: {envoi.details}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Durée: {envoi.duree}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
 
       </div>
     </Layout>
