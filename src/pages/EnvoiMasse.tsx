@@ -98,10 +98,10 @@ const EnvoiMasse = () => {
 
 
 
-  //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
-  //const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook-test/simulate-progress';
-  const WEBHOOK_URL = 'https://wfw.omega-connect.tech/webhook/simulate-progress';
-  const WEBHOOK_URL_RELANCE = 'https://wfw.omega-connect.tech/webhook/simulate-progress-relance';
+  //const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
+  //const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook-test/simulate-progress';
+  const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/simulate-progress';
+  const WEBHOOK_URL_RELANCE = 'https://n8n.omega-connect.tech/webhook/simulate-progress-relance';
 
 
 
@@ -268,6 +268,18 @@ const EnvoiMasse = () => {
 
     try {
 
+      const identifiant_unique = `individual-${contact.id}-${Date.now()}`;
+      const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook/realtime";
+
+      // 1. Enregistrement en temps réel
+      await api.post(webhookUrl_realtime, {
+        contacts: [contact],
+        contacts_len: 1,
+        identifiant_unique: identifiant_unique
+      });
+      fetchRealTimeStatus();
+
+      // 2. Envoi du mail via le workflow principal
       await api.post(WEBHOOK_URL, {
         mode: 'send_individual',
         category_id: category.id,
@@ -281,7 +293,10 @@ const EnvoiMasse = () => {
           company: contact.company,
         },
         timestamp: new Date().toISOString(),
+        identifiant_unique: identifiant_unique,
       });
+
+      fetchRealTimeStatus();
 
       toast({
         title: "Envoi individuel lancé",
@@ -320,8 +335,8 @@ const EnvoiMasse = () => {
     const identifiant_unique = `batch-${category.id}-${Date.now()}`
     let compteur = 0;
     const totalContacts = category.contacts.length;
-    const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook/realtime";//prod
-    //const webhookUrl_realtime = "https://wfw.omega-connect.tech/webhook-test/realtime";
+    const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook/realtime";//prod
+    //const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook-test/realtime";
     const reponse = await api.post(webhookUrl_realtime, {
       contacts: category.contacts,
       contacts_len: totalContacts,
