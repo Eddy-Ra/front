@@ -288,7 +288,7 @@ const MailsAEnvoyer = () => {
 
     try {
       setLoading(true);
-      const webhookUrl = 'https://wfw.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-c49f2db48b9001';
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-c49f2db48b9001';
       api.post(webhookUrl, {
         prompt_id: prompt.id,
         nom: prompt.nom,
@@ -441,8 +441,8 @@ const MailsAEnvoyer = () => {
                   <div
                     onClick={handleResetFilter}
                     className={`p-4 border-b cursor-pointer transition-colors ${selectedPromptForFilter === null
-                        ? 'bg-primary/10 border-primary/20'
-                        : 'bg-background hover:bg-muted/50 border-border'
+                      ? 'bg-primary/10 border-primary/20'
+                      : 'bg-background hover:bg-muted/50 border-border'
                       }`}
                   >
                     <div className="flex items-center justify-between">
@@ -491,8 +491,8 @@ const MailsAEnvoyer = () => {
                                   key={prompt.id}
                                   onClick={() => handlePromptClick(prompt.id)}
                                   className={`p-3 border rounded-lg cursor-pointer transition-all ${selectedPromptForFilter === prompt.id
-                                      ? 'border-primary bg-primary/10 shadow-sm'
-                                      : 'border-border hover:border-primary/50 hover:shadow-sm'
+                                    ? 'border-primary bg-primary/10 shadow-sm'
+                                    : 'border-border hover:border-primary/50 hover:shadow-sm'
                                     }`}
                                 >
                                   <div className="flex items-center justify-between mb-2">

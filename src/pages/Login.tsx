@@ -7,6 +7,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/ui/icons'; // Assurez-vous d'avoir un composant Icons avec l'icône Google
 
+import { api } from '@/api/api';
+import bcrypt from 'bcryptjs';
+import { useNavigate } from 'react-router-dom';
+
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -15,20 +19,44 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  const navigate = useNavigate();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Simulation de validation
-    setTimeout(() => {
-      if (email === 'admin@crm.com' && password === 'admin123') {
+    try {
+      // 1. Récupérer tous les utilisateurs
+      const res = await api.get('/users');
+      const users = res.data;
+
+      // 2. Trouver l'utilisateur par email
+      const user = users.find((u: any) => u.email === email);
+
+      if (!user) {
+        setError('Email incorrect');
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Vérifier le mot de passe hashé
+      const isMatch = await password === user.password;
+
+      if (isMatch) {
+        // Stocker les infos utilisateur (simple pour l'instant)
+        localStorage.setItem('user', JSON.stringify(user));
         window.location.href = '/dashboard';
       } else {
-        setError('Email ou mot de passe incorrect');
+        setError('Mot de passe incorrect');
       }
+
+    } catch (err) {
+      console.error("Erreur de connexion", err);
+      setError("Erreur lors de la connexion au serveur");
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -171,7 +199,7 @@ const Login = () => {
           <CardFooter className="flex-col gap-4">
             <p className="text-sm text-center text-zinc-400">
               Vous n'avez pas de compte ?{' '}
-              <a href="#" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
+              <a href="/register" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
                 Inscrivez-vous
               </a>
             </p>
