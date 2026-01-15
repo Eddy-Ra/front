@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { NouveauPromptPopup } from '@/components/mailrelancepopup/NouveauPromptPopup';
 import { ModifierPromptPopup } from '@/components/mailrelancepopup/ModifierPromptPopup';
 import { SupprimerPromptPopup } from '@/components/mailrelancepopup/SupprimerPromptPopup';
-import { DeleteMailConfirmationPopup } from '@/components/mailaenvoyerpopup/DeleteMailConfirmation';
+import { DeleteMailConfirmationPopup } from '@/components/mailrelancepopup/DeleteMailConfirmation';
 import { api } from '@/api/api';
 
 interface Prompt {
@@ -285,7 +285,7 @@ const MailsAEnvoyer = () => {
 
     try {
       setLoading(true);
-      const webhookUrl = 'https://n8n.omega-connect.tech/webhook-test/53b181f1-7b25-4835-8509-relancemailsgen';
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-relancemailsgenv2';
       api.post(webhookUrl, {
         prompt_id: prompt.id,
         nom: prompt.nom,

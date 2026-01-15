@@ -9,7 +9,7 @@ import { Icons } from '@/components/ui/icons'; // Assurez-vous d'avoir un compos
 
 import { api } from '@/api/api';
 import bcrypt from 'bcryptjs';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -44,9 +44,18 @@ const Login = () => {
       const isMatch = await password === user.password;
 
       if (isMatch) {
+        // Mettre à jour le statut actif
+        try {
+          await api.patch(`/users/${user.id}`, { is_active: true });
+          // Mettre à jour l'objet user local aussi
+          user.is_active = true;
+        } catch (e) {
+          console.error("Erreur mise à jour statut", e);
+        }
+
         // Stocker les infos utilisateur (simple pour l'instant)
         localStorage.setItem('user', JSON.stringify(user));
-        window.location.href = '/dashboard';
+        navigate('/dashboard');
       } else {
         setError('Mot de passe incorrect');
       }
@@ -171,6 +180,14 @@ const Login = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <div className="flex justify-end">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-purple-400 hover:text-rose-500 transition-colors duration-200"
+                  >
+                    Mot de passe oublié ?
+                  </Link>
+                </div>
               </div>
 
               {/* Message d'erreur */}
@@ -199,14 +216,12 @@ const Login = () => {
           <CardFooter className="flex-col gap-4">
             <p className="text-sm text-center text-zinc-400">
               Vous n'avez pas de compte ?{' '}
-              <a href="/register" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
+              <Link to="/register" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
                 Inscrivez-vous
-              </a>
+              </Link>
             </p>
             {/* Informations de test */}
-            <div className="p-3 w-full bg-zinc-800 rounded-lg border border-zinc-700 text-zinc-400 text-center text-sm">
-              <strong>Test:</strong> <span>admin@crm.com</span> / <span>admin123</span>
-            </div>
+
           </CardFooter>
         </Card>
       </div>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '@/api/api';
 import { toast } from '@/hooks/use-toast';
 
@@ -174,9 +174,9 @@ const Register = () => {
                     <CardFooter className="flex-col gap-4">
                         <p className="text-sm text-center text-zinc-400">
                             Déjà un compte ?{' '}
-                            <a href="/login" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
+                            <Link to="/login" className="font-semibold text-purple-400 hover:text-rose-500 transition-colors duration-200">
                                 Connectez-vous
-                            </a>
+                            </Link>
                         </p>
                     </CardFooter>
                 </Card>
