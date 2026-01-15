@@ -1,0 +1,22 @@
+
+Pour résoudre les erreurs de pages blanches et 404 lors du déploiement, les solutions suivantes ont été appliquées :
+
+1. UTILISATION DU HASHROUTER (Le plus important) : 
+   - Migration de 'BrowserRouter' vers 'HashRouter' dans src/App.tsx.
+   - Les URLs utilisent désormais un '#' (ex: index.html#/login).
+   - Solution : Le serveur ignore tout ce qui suit le '#' et sert toujours index.html, laissant le code React gérer la navigation interne. Cela rend l'application "universelle" (fonctionne n'importe où sans configuration serveur complexe).
+
+2. CHEMINS D'ASSETS RELATIFS :
+   - Dans 'vite.config.ts', la propriété 'base' a été fixée à './'.
+   - Solution : Les fichiers JS et CSS sont chargés par rapport à l'emplacement de 'index.html', évitant les erreurs 404 sur les fichiers statiques quelle que soit l'URL de base.
+
+3. NAVIGATION DÉCLARATIVE (React Router) :
+   - Remplacement de 'window.location.href' par le hook 'useNavigate()'.
+   - Remplacement des balises '<a>' par le composant '<Link>'.
+   - Solution : Garantit que la navigation reste à l'intérieur de l'application React et respecte le mode de routage (Hash).
+
+4. CONFIGURATION APACHE (.htaccess) :
+   - Ajout d'un fichier '.htaccess' dans le dossier 'public/' (copié automatiquement dans 'dist/').
+   - Contenu : Réécriture des règles pour rediriger les requêtes vers 'index.html' en cas de fichier non existant.
+   - Solution : Sécurité supplémentaire pour éviter les 404 si l'utilisateur tente d'accéder directement à un chemin sans le hash.
+

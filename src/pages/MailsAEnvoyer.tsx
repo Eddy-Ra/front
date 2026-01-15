@@ -338,27 +338,22 @@ const MailsAEnvoyer = () => {
   };
 
   const shouldDisableValidate = (mail: MailGenere): boolean => {
-    // La validation est désactivée si le mail est déjà Validé OU si un autre mail de la même catégorie l'est.
-    return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
+    // La validation est désactivée uniquement si le mail est déjà Validé ou en cours de chargement.
+    return loading || mail.statut === 'Validé';
   };
 
   const shouldDisableReject = (mail: MailGenere): boolean => {
-    // Le bouton X (rejet/retour en attente) est désactivé si le mail est déjà en attente (si la nouvelle logique est "retourner en attente")
-    // OU si un autre mail de la même catégorie est Validé.
+    // Le bouton X est désactivé si le mail est déjà en attente ou en cours de chargement.
     return (
       loading ||
-      mail.statut === 'En attente' || // Si on clique sur X, on veut le mettre en 'En attente'. Si c'est déjà 'En attente', on désactive.
-      isCategoryValidated(mail.categorie, mail.id)
+      mail.statut === 'En attente'
     );
   };
 
   // NOUVELLE FONCTION : Désactiver le bouton de suppression
   const shouldDisableDelete = (mail: MailGenere): boolean => {
-    // Le bouton de suppression est désactivé si:
-    // 1. Le mail est en cours de chargement
-    // 2. Le mail est validé
-    // 3. Un autre mail de la même catégorie est validé
-    return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
+    // Le bouton de suppression est désactivé uniquement si le mail est en cours de chargement.
+    return loading;
   };
 
   const groupedPrompts = useMemo(() => {
@@ -579,8 +574,7 @@ const MailsAEnvoyer = () => {
                 ) : (
                   <div className="space-y-4">
                     {filteredMails.map((mail) => {
-                      const isAnotherMailValidated = isCategoryValidated(mail.categorie, mail.id);
-                      const isItemVisuallyDisabled = isAnotherMailValidated && mail.statut !== 'Validé';
+                      const isItemVisuallyDisabled = false; // Suppression de la logique d'opacité basée sur la catégorie
 
                       return (
                         <div

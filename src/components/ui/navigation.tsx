@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +17,17 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import img from '../../../public/assets/img/johndoe.jpg';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const navigationItems = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -32,8 +43,29 @@ interface SidebarProps {
   className?: string;
 }
 
+import { api } from '@/api/api';
+
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Récupérer les infos utilisateur
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userName = user?.name || 'Utilisateur';
+  const userEmail = user?.email || 'user@crm.com';
+
+  const handleLogout = async () => {
+    if (user && user.id) {
+      try {
+        await api.patch(`/users/${user.id}`, { is_active: false });
+      } catch (e) {
+        console.error("Erreur déconnexion statut", e);
+      }
+    }
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
 
   return (
     <aside className={cn(
@@ -91,19 +123,34 @@ export function Sidebar({ className }: SidebarProps) {
             />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold font-poppins">John Doe</p>
-            <p className="text-xs text-muted-foreground">admin@crm.com</p>
+            <p className="text-sm font-semibold font-poppins">{userName}</p>
+            <p className="text-xs text-muted-foreground">{userEmail}</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2 mb-2 border-[#8675E1] border-2 text-[#8675E1]"
-          onClick={() => window.location.href = '/login'}
-        >
-          <LogOut className="h-4 w-4" />
-          Déconnexion
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 mb-2 border-[#8675E1] border-2 text-[#8675E1]"
+            >
+              <LogOut className="h-4 w-4" />
+              Déconnexion
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Déconnexion</AlertDialogTitle>
+              <AlertDialogDescription>
+                Êtes-vous sûr de vouloir vous déconnecter ?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Non</AlertDialogCancel>
+              <AlertDialogAction onClick={handleLogout}>Oui</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {/* <div className="flex justify-center">
           <ThemeToggle />
         </div> */}

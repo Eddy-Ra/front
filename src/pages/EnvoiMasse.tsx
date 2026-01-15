@@ -98,9 +98,7 @@ const EnvoiMasse = () => {
 
 
 
-  //const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook-test/1aad8c3f-b7cc-455e-bfa6-f2fbf8c1ffcgeneratemessage';
-  //const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook-test/simulate-progress';
-  const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/simulate-progress';
+  const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/simulate-progress-n8n-v1';
   const WEBHOOK_URL_RELANCE = 'https://n8n.omega-connect.tech/webhook/simulate-progress-relance';
 
 
@@ -350,9 +348,7 @@ const EnvoiMasse = () => {
     const timestamp = new Date().toISOString()
     for (let i = 0; i < totalContacts; i++) {
       try {
-
         const contact = category.contacts[i];
-
         console.log(`📤 Lancement du webhook pour contact ${i + 1}/${totalContacts}`);
 
         // 🟢 Étape 1 : envoi au webhook N8N
@@ -362,33 +358,25 @@ const EnvoiMasse = () => {
           category_name: category.name,
           message_title: category.messageTitle,
           message_content: category.messageContent,
-          contact, // un seul contact par itération
-          limit: totalContacts, // valeur max pour le workflow
-          compteur, // compteur actuel
+          contact,
+          limit: totalContacts,
+          compteur: i, // On utilise l'index local
           timestamp: timestamp,
           identifiant_unique: identifiant_unique
         });
 
-        // 🟢 Étape 2 : on attend la réponse de N8N (Respond to Webhook1)
-        const data = response.data;
-        console.log("Réponse N8N :", data);
-
-        // 🔹 Mise à jour du compteur (renvoyé par N8N)
-        compteur = data.compteur + 1;
-
-
-        // 🔹 Calcul de la progression
+        // 🟢 Étape 2 : calcul et mise à jour de la progression
+        const currentCount = i + 1;
         const progress = Math.min(
-          Math.round((compteur / totalContacts) * 100),
+          Math.round((currentCount / totalContacts) * 100),
           100
         );
-
 
         // 🔹 Mise à jour du state React
         setMessagesCategories(prev =>
           prev.map(cat =>
             cat.id === categoryId
-              ? { ...cat, progress, isSending: progress < 100 }
+              ? { ...cat, progress, isSending: true } // On garde isSending à true ici
               : cat
           )
         );
@@ -396,28 +384,22 @@ const EnvoiMasse = () => {
         // 🔹 Notification de progression
         toast({
           title: `Progression ${progress}%`,
-          description: `Contact ${i + 1}/${totalContacts} traité. Statut: ${data.status}`,
+          description: `Contact ${i + 1}/${totalContacts} traité.`,
         });
 
         // 🕐 Petit délai pour lisser la charge serveur
         await new Promise(res => setTimeout(res, 300));
 
-        // 🛑 Si le workflow renvoie "stop", on sort
-        if (data.status === "stop") {
-          console.log("🛑 Workflow terminé selon N8N");
-          break;
-        }
       } catch (error) {
         console.error("❌ Erreur d’envoi :", error);
         toast({
           title: "Erreur d’envoi",
-          description: "Impossible de lancer l’envoi en lot",
+          description: "Une erreur est survenue lors de l'envoi de certains messages.",
           variant: "destructive",
         });
         break; // on arrête la boucle en cas d’erreur
       }
       fetchRealTimeStatus();
-
     }
     fetchHistory();
     fetchRealTimeStatus();
@@ -440,6 +422,48 @@ const EnvoiMasse = () => {
       )
     );
   };
+
+  const handleSendAllCategories = async () => {
+    const categoriesToSend = messagesCategories.filter(
+      (cat) => cat.contacts.length > 0 && !cat.isSending
+    );
+
+    if (categoriesToSend.length === 0) {
+      toast({
+        title: "Information",
+        description: "Aucune catégorie à envoyer (pas de contacts ou envoi déjà en cours)",
+      });
+      return;
+    }
+
+    setIsRunning(true);
+    toast({
+      title: "Envoi groupé global",
+      description: `Lancement de l'envoi pour ${categoriesToSend.length} catégories.`,
+    });
+
+    try {
+      // On lance tout en parallèle
+      await Promise.all(
+        categoriesToSend.map((cat) => handleSendCategoryBatch(cat.id))
+      );
+
+      toast({
+        title: "Tous les envois sont terminés",
+        description: "Le processus d'envoi pour toutes les catégories sélectionnées est fini.",
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi groupé:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de l'envoi de certaines catégories.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
 
 
 
@@ -626,6 +650,17 @@ const EnvoiMasse = () => {
                       </div>
                     ))}
                   </ScrollArea>
+                  <div className="pt-2 border-t mt-2">
+                    <Button
+                      variant="default"
+                      className="w-full gap-2 bg-primary hover:bg-primary/90"
+                      onClick={handleSendAllCategories}
+                      disabled={isRunning || loading || messagesCategories.every(cat => cat.isSending || cat.contacts.length === 0)}
+                    >
+                      <Send className="h-4 w-4" />
+                      Envoyer toutes les catégories
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -861,6 +896,17 @@ const EnvoiMasse = () => {
                       </div>
                     ))}
                   </ScrollArea>
+                  <div className="pt-2 border-t mt-2">
+                    <Button
+                      variant="default"
+                      className="w-full gap-2 bg-primary hover:bg-primary/90"
+                      onClick={handleSendAllCategories}
+                      disabled={isRunning || loading || messagesCategories.every(cat => cat.isSending || cat.contacts.length === 0)}
+                    >
+                      <Send className="h-4 w-4" />
+                      Envoyer toutes les catégories
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

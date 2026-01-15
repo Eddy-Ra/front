@@ -5,11 +5,12 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "./",
   server: {
     host: true, // Needed for Docker port mapping
     strictPort: false,
     port: 5173,
-	  allowedHosts: ['autoprospection.omega-connect.tech'],
+    allowedHosts: ['autoprospection.omega-connect.tech'],
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
