@@ -285,7 +285,7 @@ const MailsAEnvoyer = () => {
 
     try {
       setLoading(true);
-      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-relancemailsgenv2';
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-relancemailsgen-v1';
       api.post(webhookUrl, {
         prompt_id: prompt.id,
         nom: prompt.nom,
