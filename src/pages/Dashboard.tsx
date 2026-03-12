@@ -1,16 +1,72 @@
-import React from 'react';
-import { Users, Mail, Send, Reply, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Users, Mail, Send, Reply, CheckCircle, AlertCircle, Loader2, ArrowUp } from 'lucide-react';
+import { api } from '@/api/api';
 import { Layout } from '@/components/ui/navigation';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 
 const Dashboard = () => {
-  // SECTION: Données mockées pour le dashboard
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showCategoryScrollTop, setShowCategoryScrollTop] = useState(false);
+  const categoryViewportRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const viewport = categoryViewportRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!viewport) return;
+
+    const handleCategoryScroll = () => {
+      if (viewport.scrollTop > 100) {
+        setShowCategoryScrollTop(true);
+      } else {
+        setShowCategoryScrollTop(false);
+      }
+    };
+
+    viewport.addEventListener('scroll', handleCategoryScroll);
+    return () => viewport.removeEventListener('scroll', handleCategoryScroll);
+  }, [loading]); // Re-run when loading changes to ensure viewport is in DOM
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [contactsRes, categoriesRes] = await Promise.all([
+          api.get('/b2b_manual'),
+          api.get('/categories')
+        ]);
+        setContacts(contactsRes.data);
+        setCategories(categoriesRes.data);
+      } catch (err) {
+        console.error("Erreur lors de la récupération des statistiques:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
   const stats = [
     {
       title: 'Total Contacts',
-      value: '2,847',
+      value: contacts.length.toLocaleString(),
       description: 'Contacts dans la base',
       icon: Users,
       trend: { value: 12, isPositive: true }
@@ -38,17 +94,32 @@ const Dashboard = () => {
     }
   ];
 
-  const contactsByCategory = [
-    { name: 'Entreprises Tech', count: 1247, percentage: 44 },
-    { name: 'Commerce', count: 863, percentage: 30 },
-    { name: 'Services', count: 542, percentage: 19 },
-    { name: 'Autres', count: 195, percentage: 7 }
-  ];
+  const contactsByCategory = useMemo(() => {
+    const total = contacts.length || 1;
+    return categories.map(cat => {
+      const count = contacts.filter(c => c.category_id === cat.id).length;
+      return {
+        name: cat.name,
+        count: count,
+        percentage: Math.round((count / total) * 100)
+      };
+    }).sort((a, b) => b.count - a.count);
+  }, [contacts, categories]);
+
+  const phantombusterCount = contacts.filter(
+    (c) => c.source?.toLowerCase() === "phantombuster"
+  ).length;
+
+  const manuelCount = contacts.filter(
+    (c) =>
+      c.source?.toLowerCase() === "ajout manuel" ||
+      c.source?.toLowerCase() === "manuel"
+  ).length;
 
   const scrapingSources = [
     { name: 'Google Maps', status: 'active', lastSync: '2 min ago', contacts: 1523 },
-    { name: 'Phantombuster', status: 'active', lastSync: '1h ago', contacts: 894 },
-    { name: 'Manuel', status: 'active', lastSync: 'Continu', contacts: 430 }
+    { name: 'Phantombuster', status: 'active', lastSync: '1h ago', contacts: phantombusterCount },
+    { name: 'Manuel', status: 'active', lastSync: 'Continu', contacts: manuelCount }
   ];
 
   const recentActivity = [
@@ -57,6 +128,17 @@ const Dashboard = () => {
     { action: 'Nouvelle réponse reçue', time: '23 min ago', type: 'success' },
     { action: 'Synchronisation Google Maps', time: '1h ago', type: 'info' }
   ];
+
+  const renderContent = (content: React.ReactNode) => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    return content;
+  };
 
   return (
     <Layout title="Tableau de bord">
@@ -85,21 +167,46 @@ const Dashboard = () => {
                 <div className="p-2 rounded-lg bg-gradient-primary/20 backdrop-blur-sm">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
-                Contacts par Catégorie
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 bg-gradient-glass/10">
-              <div className="space-y-4">
-                {contactsByCategory.map((category, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{category.name}</span>
-                      <span className="text-muted-foreground">{category.count}</span>
+            <CardContent className="p-0 bg-gradient-glass/10 relative">
+              {renderContent(
+                <>
+                  <ScrollArea ref={categoryViewportRef} className="h-[300px] px-6 py-4">
+                    <div className="space-y-4">
+                      {contactsByCategory.length > 0 ? (
+                        contactsByCategory.map((category, index) => (
+                          <div key={index} className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="font-medium">{category.name}</span>
+                              <span className="text-muted-foreground">{category.count}</span>
+                            </div>
+                            <Progress value={category.percentage} className="h-2" />
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-sm text-muted-foreground">Aucune donnée disponible</p>
+                      )}
                     </div>
-                    <Progress value={category.percentage} className="h-2" />
-                  </div>
-                ))}
-              </div>
+                  </ScrollArea>
+
+                  {showCategoryScrollTop && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute bottom-4 right-4 h-8 w-8 rounded-full bg-primary/20 hover:bg-primary/30 text-primary animate-in fade-in zoom-in duration-300 backdrop-blur-sm border border-primary/20"
+                      onClick={() => {
+                        const viewport = categoryViewportRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+                        if (viewport) {
+                          viewport.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -114,28 +221,29 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 bg-gradient-glass/10">
-              <div className="space-y-4">
-                {scrapingSources.map((source, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full ${
-                        source.status === 'active' ? 'bg-success' : 'bg-muted'
-                      }`} />
-                      <div>
-                        <p className="font-medium">{source.name}</p>
+              {renderContent(
+                <div className="space-y-4">
+                  {scrapingSources.map((source, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${source.status === 'active' ? 'bg-success' : 'bg-muted'
+                          }`} />
+                        <div>
+                          <p className="font-medium">{source.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {source.contacts.toLocaleString()} contacts
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
                         <p className="text-sm text-muted-foreground">
-                          {source.contacts} contacts
+                          {source.lastSync}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {source.lastSync}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -155,9 +263,8 @@ const Dashboard = () => {
               <div className="space-y-4">
                 {recentActivity.map((activity, index) => (
                   <div key={index} className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                    <div className={`h-2 w-2 rounded-full ${
-                      activity.type === 'success' ? 'bg-success' : 'bg-primary'
-                    }`} />
+                    <div className={`h-2 w-2 rounded-full ${activity.type === 'success' ? 'bg-success' : 'bg-primary'
+                      }`} />
                     <div className="flex-1">
                       <p className="font-medium">{activity.action}</p>
                       <p className="text-sm text-muted-foreground">{activity.time}</p>
@@ -182,16 +289,6 @@ const Dashboard = () => {
               <div className="space-y-4">
                 <button className="w-full p-4 text-left glass border border-white/20 rounded-xl hover:bg-gradient-glass hover-lift transition-all duration-300 group">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-gradient-primary/20 group-hover:bg-gradient-primary/30 transition-colors">
-                      <Mail className="h-5 w-5 text-primary" />
-                    </div>
-                    <span className="font-semibold font-poppins group-hover:text-primary transition-colors">Valider les mails</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2 ml-11 font-poppins">94 en attente</p>
-                </button>
-                
-                <button className="w-full p-4 text-left glass border border-white/20 rounded-xl hover:bg-gradient-glass hover-lift transition-all duration-300 group">
-                  <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-gradient-success/20 group-hover:bg-gradient-success/30 transition-colors">
                       <Send className="h-5 w-5 text-success" />
                     </div>
@@ -199,7 +296,7 @@ const Dashboard = () => {
                   </div>
                   <p className="text-sm text-muted-foreground mt-2 ml-11 font-poppins">Envoi en masse</p>
                 </button>
-                
+
                 <button className="w-full p-4 text-left glass border border-white/20 rounded-xl hover:bg-gradient-glass hover-lift transition-all duration-300 group">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-gradient-secondary/20 group-hover:bg-gradient-secondary/30 transition-colors">
@@ -212,6 +309,21 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Floating Scroll to Top Button */}
+        <div
+          className={`fixed bottom-8 right-8 transition-all duration-300 transform ${showScrollTop ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
+            }`}
+        >
+          <Button
+            variant="primary"
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-lg bg-gradient-primary hover:scale-110 transition-transform duration-200"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            <ArrowUp className="h-6 w-6 text-white" />
+          </Button>
         </div>
       </div>
     </Layout>

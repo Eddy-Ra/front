@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Users, Settings, Mail, Key, Plus, Edit, Trash2, Shield, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Settings, Mail, Key, Plus, Edit, Trash2, Shield, User, Filter } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,38 +9,35 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import img from '../../public/assets/img/johndoe.jpg';
+import { api } from '@/api/api';
+import { toast } from '@/hooks/use-toast';
 
 const Parametres = () => {
-  // SECTION: Données mockées des utilisateurs
-  const [utilisateurs] = useState([
-    {
-      id: 1,
-      nom: 'Admin Principal',
-      email: 'admin@crm.com',
-      role: 'Admin',
-      statut: 'Actif',
-      dernierAcces: '2024-01-15 14:30',
-      dateCreation: '2024-01-01'
-    },
-    {
-      id: 2,
-      nom: 'Marie Rédactrice',
-      email: 'marie.redac@crm.com',
-      role: 'Rédacteur',
-      statut: 'Actif',
-      dernierAcces: '2024-01-15 09:15',
-      dateCreation: '2024-01-05'
-    },
-    {
-      id: 3,
-      nom: 'Jean Validateur',
-      email: 'jean.valid@crm.com',
-      role: 'Rédacteur',
-      statut: 'Inactif',
-      dernierAcces: '2024-01-10 16:45',
-      dateCreation: '2024-01-03'
+  // SECTION: Gestion des utilisateurs
+  const [utilisateurs, setUtilisateurs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filterRole, setFilterRole] = useState<string>('Tous');
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.get('/users');
+      setUtilisateurs(res.data);
+    } catch (err) {
+      console.error("Erreur chargement utilisateurs", err);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les utilisateurs.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
 
   // SECTION: Paramètres généraux
   const [parametresGeneraux, setParametresGeneraux] = useState({
@@ -62,18 +59,46 @@ const Parametres = () => {
 
   const [showAddUser, setShowAddUser] = useState(false);
 
-  const handleAddUser = () => {
-    console.log('Ajouter utilisateur:', nouvelUtilisateur);
-    setShowAddUser(false);
-    setNouvelUtilisateur({ nom: '', email: '', role: 'Rédacteur' });
+  const handleAddUser = async () => {
+    try {
+      await api.post('/users', {
+        ...nouvelUtilisateur,
+        created_at: new Date().toISOString(),
+        is_active: true
+      });
+      toast({ title: "Succès", description: "Utilisateur créé avec succès" });
+      setShowAddUser(false);
+      setNouvelUtilisateur({ nom: '', email: '', role: 'Rédacteur' });
+      fetchUsers();
+    } catch (err) {
+      toast({ title: "Erreur", description: "Erreur lors de la création", variant: "destructive" });
+    }
   };
 
   const handleEditUser = (user: any) => {
+    // A implémenter si besoin d'édition complète
     console.log('Modifier utilisateur:', user);
   };
 
-  const handleDeleteUser = (user: any) => {
-    console.log('Supprimer utilisateur:', user);
+  const handleDeleteUser = async (user: any) => {
+    if (!confirm("Voulez-vous vraiment supprimer cet utilisateur ?")) return;
+    try {
+      await api.delete(`/users/${user.id}`);
+      toast({ title: "Succès", description: "Utilisateur supprimé" });
+      fetchUsers();
+    } catch (err) {
+      toast({ title: "Erreur", description: "Impossible de supprimer", variant: "destructive" });
+    }
+  };
+
+  const toggleUserStatus = async (user: any) => {
+    try {
+      await api.patch(`/users/${user.id}`, { is_active: !user.is_active });
+      toast({ title: "Succès", description: `Statut mis à jour` });
+      fetchUsers();
+    } catch (err) {
+      toast({ title: "Erreur", description: "Erreur mise à jour statut", variant: "destructive" });
+    }
   };
 
   const handleSaveSettings = () => {
@@ -91,16 +116,16 @@ const Parametres = () => {
     }
   };
 
-  const getStatusBadge = (statut: string) => {
-    switch (statut) {
-      case 'Actif':
-        return <Badge className="bg-success text-success-foreground">Actif</Badge>;
-      case 'Inactif':
-        return <Badge variant="destructive">Inactif</Badge>;
-      default:
-        return <Badge variant="outline">{statut}</Badge>;
-    }
+  const getStatusBadge = (isActive: any) => {
+    // Gérer les différents formats possibles (booléen, 0/1, string)
+    const active = isActive === true || isActive === 1 || isActive === '1' || isActive === 'true';
+    return active ?
+      <Badge className="bg-green-500 hover:bg-green-600 text-white cursor-pointer select-none">Actif</Badge> :
+      <Badge variant="destructive" className="cursor-pointer select-none">Inactif</Badge>;
   };
+
+  // Filtrer les utilisateurs
+  const filteredUsers = utilisateurs.filter(user => filterRole === 'Tous' || user.role === filterRole);
 
   return (
     <Layout title="Paramètres & Gestion utilisateur">
@@ -117,10 +142,27 @@ const Parametres = () => {
               {/* Actions principales */}
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Gestion des Utilisateurs</h3>
-                <Button onClick={() => setShowAddUser(true)} className="gap-2 border-1">
-                  <Plus className="h-4 w-4" />
-                  Ajouter un utilisateur
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={() => setShowAddUser(true)} className="gap-2 border-1">
+                    <Plus className="h-4 w-4" />
+                    Ajouter un utilisateur
+                  </Button>
+                </div>
+              </div>
+
+              {/* Filtres de Rôle */}
+              <div className="flex gap-2 mb-4">
+                {['Tous', 'Admin', 'Rédacteur'].map(role => (
+                  <Button
+                    key={role}
+                    variant={filterRole === role ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterRole(role)}
+                    className="transition-all"
+                  >
+                    {role}
+                  </Button>
+                ))}
               </div>
 
               {/* Liste des utilisateurs */}
@@ -133,28 +175,26 @@ const Parametres = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {utilisateurs.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                    {filteredUsers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border border-border rounded-lg bg-card hover:bg-accent/5 transition-colors">
                         <div className="flex items-center gap-4">
-                          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center overflow-hidden">
-                            <img
-                              src={img}
-                              alt="Avatar utilisateur"
-                              className="h-full w-full object-cover rounded-full"
-                            />
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-rose-500 flex items-center justify-center overflow-hidden text-white font-bold text-lg">
+                            {user.name?.charAt(0) || 'U'}
                           </div>
                           <div>
-                            <h4 className="font-medium">{user.nom}</h4>
+                            <h4 className="font-medium">{user.name || user.nom}</h4>
                             <p className="text-sm text-muted-foreground">{user.email}</p>
                             <p className="text-xs text-muted-foreground">
-                              Dernier accès: {user.dernierAcces}
+                              Créé le: {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-3">
-                          {getRoleBadge(user.role)}
-                          {getStatusBadge(user.statut)}
+                          {getRoleBadge(user.role || 'Rédacteur')}
+                          <div onClick={() => toggleUserStatus(user)} title="Cliquez pour changer le statut">
+                            {getStatusBadge(user.is_active)}
+                          </div>
 
                           <div className="flex gap-1">
                             <Button
@@ -167,10 +207,10 @@ const Parametres = () => {
                             </Button>
                             {user.role !== 'Admin' && (
                               <Button
-                                variant="outline"
+                                variant="destructive"
                                 size="sm"
                                 onClick={() => handleDeleteUser(user)}
-                                className="h-8 w-8 p-0 border"
+                                className="h-8 w-8 p-0"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

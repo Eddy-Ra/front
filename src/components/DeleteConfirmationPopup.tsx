@@ -1,14 +1,15 @@
 import React from 'react';
-import { X, AlertTriangle, Trash2 } from 'lucide-react';
+import { X, AlertTriangle, Trash2, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils'; // Assurez-vous d'avoir cn pour les classes conditionnelles
+import { cn } from '@/lib/utils';
 
 interface DeleteConfirmationPopupProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   categoryName: string;
+  contactCount: number; // 🔑 NOUVELLE PROP
   loading: boolean;
 }
 
@@ -17,9 +18,18 @@ export const DeleteConfirmationPopup: React.FC<DeleteConfirmationPopupProps> = (
   onClose,
   onConfirm,
   categoryName,
+  contactCount,
   loading,
 }) => {
   if (!isOpen) return null;
+
+  // 🔑 LOGIQUE CONDITIONNELLE
+  const hasContacts = contactCount > 0;
+
+  // Définition du contenu basé sur la condition
+  const ConfirmationIcon = hasContacts ? Ban : AlertTriangle;
+  const ConfirmationTitle = hasContacts ? "Suppression impossible" : "Confirmer la Suppression";
+  const TitleColor = hasContacts ? "text-destructive" : "text-warning";
 
   return (
     <div
@@ -31,9 +41,9 @@ export const DeleteConfirmationPopup: React.FC<DeleteConfirmationPopupProps> = (
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="flex items-center gap-2 text-warning font-semibold"> {/* Utilisation de text-warning ou une couleur personnalisée */}
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            Confirmer la Suppression
+          <CardTitle className={`flex items-center gap-2 font-semibold ${TitleColor}`}>
+            <ConfirmationIcon className="h-5 w-5" />
+            {ConfirmationTitle}
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} disabled={loading} className="hover:bg-accent">
             <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
@@ -41,47 +51,62 @@ export const DeleteConfirmationPopup: React.FC<DeleteConfirmationPopupProps> = (
         </CardHeader>
 
         <CardContent className="space-y-6 pt-4">
-          <p className="text-sm text-foreground/80 leading-relaxed"> {/* Texte plus clair */}
-            Vous êtes sur le point de supprimer la catégorie "
-            <span className="font-bold text-foreground/80 leading-relaxed">{categoryName}</span>".
-            <br />
-            Cette action est <span className="font-bold text-warning">irréversible</span> et tous les contacts associés perdront cette classification.
-            <br />
-            Voulez-vous vraiment continuer ?
-          </p>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-border"> {/* Séparateur et padding */}
+          {/* 🔑 MESSAGE AFFICHÉ SELON LA CONDITION */}
+          {hasContacts ? (
+            <p className="text-sm text-foreground/80 leading-relaxed">
+              La catégorie "<span className="font-bold text-foreground/80">{categoryName}</span>"
+              ne peut pas être supprimée car elle est actuellement <span className="font-bold text-foreground/80">assignée à {contactCount} contact(s)</span>.
+              <br />
+              Veuillez <span className="font-bold text-foreground/80">réaffecter ou supprimer</span> ces contacts avant de supprimer cette catégorie.
+            </p>
+          ) : (
+            <p className="text-sm text-foreground/80 leading-relaxed">
+              Vous êtes sur le point de supprimer la catégorie "
+              <span className="font-bold text-foreground/80 leading-relaxed">{categoryName}</span>".
+              <br />
+              Cette action est <span className="font-bold text-foreground/80">irréversible</span>. La catégorie est <span className="font-bold text-foreground/80">vide (0 contact)</span>.
+              <br />
+              Voulez-vous vraiment continuer ?
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <Button
               variant="outline" onClick={onClose} disabled={loading}
               className="px-6 py-2"
             >
               Annuler
             </Button>
-            <Button
-              onClick={onConfirm}
-              className={cn(
-                "px-6 py-2 gap-2",
-                "bg-red-700 hover:bg-red-800 gap-2 bg-gradient-primary border-2 border-primary-hover", // Un rouge plus profond pour le dark mode
-                "dark:bg-red-600 dark:hover:bg-red-700", // Un rouge similaire pour le light mode
-                loading && "opacity-70 cursor-not-allowed" // Désactivation visuelle
-              )}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                  Suppression...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4" />
-                  Supprimer
-                </>
-              )}
-            </Button>
+
+            {/* 🔑 BOUTON DE SUPPRESSION AFFICHÉ UNIQUEMENT SI AUCUN CONTACT */}
+            {!hasContacts && (
+                <Button
+                  onClick={onConfirm}
+                  className={cn(
+                    "px-6 py-2 gap-2",
+                    "bg-red-700 hover:bg-red-800 gap-2 bg-gradient-primary border-2 border-primary-hover",
+                    "dark:bg-red-600 dark:hover:bg-red-700",
+                    loading && "opacity-70 cursor-not-allowed"
+                  )}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      Suppression...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Supprimer
+                    </>
+                  )}
+                </Button>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Loader2, AlertCircle, Bot } from 'lucide-react';
+import { X, Loader2, AlertCircle, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,17 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { api } from '@/api/api'; // ✅ utilisation de l'instance Axios
+import { api } from '@/api/api'; // ✅ instance Axios
 
 interface PromptFormData {
   nom: string;
   categorie: string;
+  statut: string;
   texte: string;
 }
 
 interface Category {
   id: string;
   name: string;
+}
+
+interface Statut {
+  id: string;
+  created_at?: string;
+  statut: string;
 }
 
 interface NouveauPromptPopupProps {
@@ -28,27 +35,36 @@ interface NouveauPromptPopupProps {
   onRefreshPrompts?: () => Promise<void>;
 }
 
-export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, onClose, onSave, initialData, onRefreshPrompts }) => {
+export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialData,
+  onRefreshPrompts
+}) => {
   const [isPromptsLoading, setIsPromptsLoading] = useState(false);
 
   const [formData, setFormData] = useState<PromptFormData>({
     nom: '',
     categorie: '',
+    statut: '',
     texte: '',
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [statuts, setStatuts] = useState<Statut[]>([]);
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+  const [loadingStatus, setLoadingStatus] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🟢 Charger dynamiquement les catégories depuis l'API avec Axios
+  // 🟢 Charger dynamiquement les catégories et statuts
   useEffect(() => {
     const fetchCategories = async () => {
       setLoadingCategories(true);
       setError(null);
       try {
-        const { data } = await api.get('/categories'); // ✅ utilisation de l'api Axios
+        const { data } = await api.get('/categories');
         setCategories(data);
       } catch (err: any) {
         console.error('Erreur de chargement des catégories :', err);
@@ -58,23 +74,41 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
       }
     };
 
+    const fetchStatuts = async () => {
+      setLoadingStatus(true);
+      setError(null);
+      try {
+        const { data } = await api.get('/mailsreponsesstatus');
+        setStatuts(data);
+      } catch (err: any) {
+        console.error('Erreur de chargement des statuts :', err);
+        setError("Impossible de charger les statuts. Vérifiez le serveur API.");
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+
     if (isOpen) {
       fetchCategories();
+      fetchStatuts();
     }
   }, [isOpen]);
 
+  // 🟣 Initialisation du formulaire
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         setFormData({
           nom: initialData.nom || '',
           categorie: initialData.categorie || '',
+          statut: initialData.statut || '',
           texte: initialData.texte || '',
         });
       } else {
         setFormData({
           nom: '',
           categorie: '',
+          statut: '',
           texte: '',
         });
       }
@@ -87,6 +121,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
   const title = isEditMode ? 'Modifier le prompt' : 'Nouveau prompt';
   const buttonText = isEditMode ? 'Sauvegarder les modifications' : 'Générer avec IA';
 
+  // 🧩 Handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
@@ -96,8 +131,13 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
     setFormData(prev => ({ ...prev, categorie: value }));
   };
 
+  const handleStatusSelect = (value: string) => {
+    setFormData(prev => ({ ...prev, statut: value }));
+  };
+
+  // 🟢 Sauvegarde
   const handleSave = async () => {
-    if (!formData.nom.trim() || !formData.categorie || !formData.texte.trim()) return;
+    if (!formData.nom.trim() || !formData.categorie || !formData.statut || !formData.texte.trim()) return;
 
     setIsLoading(true);
     setError(null);
@@ -106,26 +146,24 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
       if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
       if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
 
-      //const webhookUrl = 'https://n8n.omega-connect.tech/webhook-test/ace774ca-91e7-4ca0-9121-ee401829322501';
-      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-ee401829322501-generate-prompt';
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook-test/ace774ca-91e7-4ca0-9121-relance-prompt-v1';
 
-      // ✅ Utilisation de l'API Axios pour le webhook
+      console.log(formData);
+
       await api.post(webhookUrl, {
         nom: formData.nom,
         categorie: formData.categorie,
+        statut: formData.statut,
         texte: formData.texte,
         timestamp: new Date().toISOString(),
         mode: isEditMode ? 'edit' : 'create',
+
       });
 
-      // Délai de 10 secondes avant de rafraîchir les prompts
+      // Attente avant refresh
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
-      // Appel de la fonction pour récupérer les nouveaux prompts
-      if (onRefreshPrompts) {
-        await onRefreshPrompts();
-      }
-
+      if (onRefreshPrompts) await onRefreshPrompts();
       await onSave(formData);
       onClose();
     } catch (error: any) {
@@ -136,8 +174,13 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
     }
   };
 
-  const isFormValid = formData.nom.trim() !== '' && formData.categorie !== '' && formData.texte.trim() !== '';
+  const isFormValid =
+    formData.nom.trim() !== '' &&
+    formData.categorie !== '' &&
+    formData.statut !== '' &&
+    formData.texte.trim() !== '';
 
+  // 🧱 Rendu JSX
   return (
     <div
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
@@ -165,7 +208,9 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
           <div className="grid gap-4">
             {/* Nom */}
             <div className="space-y-2">
-              <Label htmlFor="nom">Nom <span className="text-destructive">*</span></Label>
+              <Label htmlFor="nom">
+                Nom <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="nom"
                 placeholder="Nom du prompt"
@@ -177,7 +222,9 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
 
             {/* Catégorie */}
             <div className="space-y-2">
-              <Label htmlFor="categorie">Catégorie <span className="text-destructive">*</span></Label>
+              <Label htmlFor="categorie">
+                Catégorie <span className="text-destructive">*</span>
+              </Label>
               <Select
                 onValueChange={handleCategorySelect}
                 value={formData.categorie}
@@ -196,9 +243,34 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({ isOpen, 
               </Select>
             </div>
 
+            {/* Statut */}
+            <div className="space-y-2">
+              <Label htmlFor="statut">
+                Statut <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                onValueChange={handleStatusSelect}
+                value={formData.statut}
+                disabled={isLoading || loadingStatus}
+              >
+                <SelectTrigger id="statut" className="w-full">
+                  <SelectValue placeholder={loadingStatus ? 'Chargement...' : 'Sélectionner un statut'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {statuts.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.statut}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Texte */}
             <div className="space-y-2">
-              <Label htmlFor="texte">Texte <span className="text-destructive">*</span></Label>
+              <Label htmlFor="texte">
+                Texte <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="texte"
                 placeholder="Entrez le contenu du prompt..."

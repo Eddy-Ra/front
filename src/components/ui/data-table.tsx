@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, Search, Filter, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'; // 🔑 Import de Loader2
+import { ChevronDown, Search, Filter, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'; 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,7 @@ interface DataTableProps {
   title: string;
   columns: Column[];
   data: any[];
-  // 🔑 NOUVEAU PROP : Pour indiquer l'état de chargement
+  // 🔑 NOUVELLE PROP : Pour indiquer l'état de chargement
   isLoading?: boolean; 
   onAdd: () => void; 
   onEdit: (item: any) => void;
@@ -87,7 +87,7 @@ export function DataTable({
   };
 
   const filteredData = useMemo(() => {
-    // Si chargement, on retourne un tableau vide pour ne pas faire de calcul coûteux
+    // 🔑 OPTIMISATION : Si chargement, on retourne un tableau vide pour ne pas faire de calcul coûteux
     if (isLoading) return [];
     
     return data.filter((item) => {
@@ -96,7 +96,12 @@ export function DataTable({
       );
       const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
         if (!value) return true;
-        return String(item[key]).toLowerCase() === value.toLowerCase();
+        
+        // 🔑 CORRECTION MINEURE : S'assurer que la catégorie est bien comparée (si elle est définie)
+        const itemValue = item[key];
+        if (itemValue === undefined || itemValue === null) return false;
+        
+        return String(itemValue).toLowerCase() === value.toLowerCase();
       });
       return matchesSearch && matchesFilters;
     });
@@ -108,7 +113,11 @@ export function DataTable({
       const aValue = a[sortColumn];
       const bValue = b[sortColumn];
       if (aValue === bValue) return 0;
-      const comparison = aValue > bValue ? 1 : -1;
+      // Gérer les valeurs null/undefined pour le tri
+      if (aValue === null || aValue === undefined) return sortDirection === 'asc' ? 1 : -1;
+      if (bValue === null || bValue === undefined) return sortDirection === 'asc' ? -1 : 1;
+      
+      const comparison = String(aValue) > String(bValue) ? 1 : -1;
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [filteredData, sortColumn, sortDirection]);
@@ -124,6 +133,10 @@ export function DataTable({
 
   if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
   else if (currentPage === 0 && totalPages > 0) setCurrentPage(1);
+  
+  // 🔑 LOGIQUE AJOUTÉE : Si le chargement est actif, ne pas tenter de naviguer
+  if (isLoading && currentPage !== 1) setCurrentPage(1);
+
 
   return (
     <>
@@ -171,14 +184,14 @@ export function DataTable({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>{title}</CardTitle>
-            <Button onClick={onAdd} className="gap-2 border">
+            <Button onClick={onAdd} className="gap-2 border" disabled={isLoading}>
               <Plus className="h-4 w-4" />
               Ajouter
             </Button>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search et Filters (inchangés) */}
+            {/* Search et Filters */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -189,7 +202,7 @@ export function DataTable({
                   setCurrentPage(1);
                 }}
                 className="pl-9"
-                disabled={isLoading} // Désactiver la recherche pendant le chargement
+                disabled={isLoading} // 🔑 Désactiver la recherche pendant le chargement
               />
             </div>
 
@@ -199,7 +212,7 @@ export function DataTable({
                   <Button 
                     variant="outline" 
                     className="gap-2 border-[#8675E1] border-2 text-[#8675E1]"
-                    disabled={isLoading} // Désactiver les filtres pendant le chargement
+                    disabled={isLoading} // 🔑 Désactiver les filtres pendant le chargement
                   >
                     <Filter className="h-4 w-4" />
                     {filter.label}
@@ -221,12 +234,14 @@ export function DataTable({
 
         <CardContent className="flex flex-col flex-grow p-0">
           <div className="h-[60vh] overflow-y-auto overflow-x-hidden hide-scrollbar-y">
+            
             {/* 🔑 CONDITIONNEL : Affichage du spinner si isLoading est vrai */}
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
+              // 🔑 Affichage de la table uniquement si PAS en chargement
               <div className="h-full overflow-x-auto custom-scroll-x">
                 <table className="min-w-full table-fixed">
                   <thead>
@@ -268,6 +283,7 @@ export function DataTable({
                               COLUMN_WIDTHS[column.key]
                             )}
                           >
+                            {/* Affichage du contenu de la cellule */}
                             {item[column.key]}
                           </td>
                         ))}
@@ -299,7 +315,7 @@ export function DataTable({
             )}
           </div>
 
-          {/* Barre de Pagination (inchangée, mais désactivée si chargement) */}
+          {/* Barre de Pagination (désactivée si chargement) */}
           {totalPages > 1 && !isLoading && (
             <div className="flex justify-between items-center px-6 mt-3 shrink-0">
               <div className="flex gap-2">
@@ -307,7 +323,7 @@ export function DataTable({
                   variant="outline"
                   size="sm"
                   onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1 || isLoading}
+                  disabled={currentPage === 1 || isLoading} // Désactivé si chargement
                   className="h-8 w-8 p-0"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -319,7 +335,7 @@ export function DataTable({
                   variant="outline"
                   size="sm"
                   onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages || isLoading}
+                  disabled={currentPage === totalPages || isLoading} // Désactivé si chargement
                   className="h-8 w-8 p-0"
                 >
                   <ChevronRight className="h-4 w-4" />

@@ -1,23 +1,24 @@
 import React from 'react';
-import { X, AlertTriangle, Trash2 } from 'lucide-react';
+import { X, AlertTriangle, Trash2, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils'; // Assurez-vous d'avoir cn pour les classes conditionnelles
+import { cn } from '@/lib/utils';
 
-interface ContactDeleteConfirmationPopupProps {
+interface DeleteMailConfirmationPopupProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  // 🔑 Nom du contact à supprimer
-  contactName: string; 
+  mailSubject: string;
+  mailRecipient: string;
   loading: boolean;
 }
 
-export const ContactDeleteConfirmationPopup: React.FC<ContactDeleteConfirmationPopupProps> = ({
+export const DeleteMailConfirmationPopup: React.FC<DeleteMailConfirmationPopupProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  contactName,
+  mailSubject,
+  mailRecipient,
   loading,
 }) => {
   if (!isOpen) return null;
@@ -32,9 +33,8 @@ export const ContactDeleteConfirmationPopup: React.FC<ContactDeleteConfirmationP
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="flex items-center gap-2 text-red-600 font-semibold dark:text-red-500">
-            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500" />
-            Suppression définitive
+          <CardTitle className="flex items-center gap-2">
+            Confirmer la Suppression
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} disabled={loading} className="hover:bg-accent">
             <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
@@ -42,31 +42,37 @@ export const ContactDeleteConfirmationPopup: React.FC<ContactDeleteConfirmationP
         </CardHeader>
 
         <CardContent className="space-y-6 pt-4">
-          <p className="text-sm text-foreground/80 leading-relaxed">
-            Êtes-vous certain de vouloir supprimer le contact "
-            <span className="font-bold text-foreground/80 leading-relaxed">{contactName}</span>" ?
-            <br />
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-foreground/80 leading-relaxed">
+              Cette action est <span className="font-bold text-foreground/80">irréversible</span>.
+              <br />
+              Voulez-vous vraiment continuer ?
+            </p>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <Button
-              variant="outline" onClick={onClose} disabled={loading}
+              variant="outline" 
+              onClick={onClose} 
+              disabled={loading}
               className="px-6 py-2"
             >
               Annuler
             </Button>
+
             <Button
               onClick={onConfirm}
               className={cn(
                 "px-6 py-2 gap-2",
-                "bg-red-700 hover:bg-red-800 gap-2 bg-gradient-primary border-2 border-primary-hover", // Dark mode
+                "bg-red-700 hover:bg-red-800 bg-gradient-primary border-2 border-primary-hover",
+                "dark:bg-red-600 dark:hover:bg-red-700",
                 loading && "opacity-70 cursor-not-allowed"
               )}
               disabled={loading}
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                   </svg>

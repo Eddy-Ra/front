@@ -1,122 +1,317 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Eye, Edit, Check, X, Bot, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Edit, Check, X, Bot, RefreshCw, Loader2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { fetchAiEmailResponses, updateAiEmailResponse, AiEmailResponse, fetchPromptsRelance, PromptRelance, updatePromptRelance, deletePromptRelance, createPromptRelance, createAiEmailResponse } from '@/lib/api';
-import Modal from '@/components/Modal';
+import { NouveauPromptPopup } from '@/components/mailrelancepopup/NouveauPromptPopup';
+import { ModifierPromptPopup } from '@/components/mailrelancepopup/ModifierPromptPopup';
+import { SupprimerPromptPopup } from '@/components/mailrelancepopup/SupprimerPromptPopup';
+import { DeleteMailConfirmationPopup } from '@/components/mailrelancepopup/DeleteMailConfirmation';
+import { api } from '@/api/api';
 
-const MailsRelance = () => {
+interface Prompt {
+  id: number;
+  dateCreation?: string;
+  nom: string;
+  contenu: string;
+  categorie: string;
+  utilise: number;
+  statut: string
+}
 
-  const [promptsRelance, setPromptsRelance] = useState<PromptRelance[]>([]);
+interface MailGenere {
+  id: number;
+  destinataire: string;
+  sujet: string;
+  contenu: string;
+  categorie: string;
+  statut: string;
+  genereParIA: boolean;
+  dateGeneration: string;
+  prompt_id: number;
+}
 
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [items, setItems] = useState<AiEmailResponse[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    const loadEmails = async () => {
-      try {
-        console.log('Chargement des emails...');
-        const res = await fetchAiEmailResponses(page, 50);
-        console.log('Emails chargés:', res);
-        if (mounted) {
-          setItems(res.items);
-          setTotal(res.total);
-        }
-      } catch (error) {
-        console.error('Erreur chargement emails:', error);
-        if (mounted) {
-          setError('Erreur lors du chargement des emails');
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-    loadEmails();
-    return () => {
-      mounted = false;
-    };
-  }, [page]);
-
-  
-  useEffect(() => {
-    let mounted = true;
-    const loadPrompts = async () => {
-      try {
-        console.log('Chargement des prompts...');
-        const res = await fetchPromptsRelance(1, 50);
-        console.log('Prompts chargés:', res);
-        if (mounted) {
-          setPromptsRelance(res.items || []);
-        }
-      } catch (error) {
-        console.error('Erreur chargement prompts:', error);
-        if (mounted) {
-          setError('Erreur lors du chargement des prompts');
-        }
-      }
-    };
-    loadPrompts();
-    return () => { mounted = false; };
-  }, []);
-
+const MailsAEnvoyer = () => {
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [isModifierPopupOpen, setIsModifierPopupOpen] = useState(false);
+  const [isSupprimerPopupOpen, setIsSupprimerPopupOpen] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [selectedMail, setSelectedMail] = useState<any>(null);
   const [editedContent, setEditedContent] = useState('');
   const [editedSubject, setEditedSubject] = useState('');
-  const [activeTab, setActiveTab] = useState('mails');
+  const [isDeleteMailPopupOpen, setIsDeleteMailPopupOpen] = useState(false);
+  const [mailToDelete, setMailToDelete] = useState<MailGenere | null>(null);
 
- 
-  const [selectedPrompt, setSelectedPrompt] = useState<PromptRelance | null>(null);
-  const [editedPromptLabel, setEditedPromptLabel] = useState('');
-  const [editedPromptSubject, setEditedPromptSubject] = useState('');
-  const [editedPromptMessage, setEditedPromptMessage] = useState('');
-  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [selectedPromptForFilter, setSelectedPromptForFilter] = useState<number | null>(null);
+  // État gérant l'accordéon des statuts
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Record<string, boolean>>({});
 
-  
-  const [showNewPromptModal, setShowNewPromptModal] = useState(false);
-  const [newPromptLabel, setNewPromptLabel] = useState('');
-  const [newPromptType, setNewPromptType] = useState('Non réponse');
-  const [newPromptSubject, setNewPromptSubject] = useState('');
-  const [newPromptMessage, setNewPromptMessage] = useState('');
-  const [creatingPrompt, setCreatingPrompt] = useState(false);
+  const [isPromptsLoading, setIsPromptsLoading] = useState(false);
+  const [isMailsLoading, setIsMailsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchPrompts = async () => {
+    setIsPromptsLoading(true);
+    try {
+      const timestamp = new Date().getTime();
+      const res = await api.get(`/relance-prompt?_t=${timestamp}`);
+      setPrompts(res.data);
 
-  const [showGenerateIaModal, setShowGenerateIaModal] = useState(false);
-  const [genEmail, setGenEmail] = useState('');
-  const [genSubject, setGenSubject] = useState('');
-  const [genMessage, setGenMessage] = useState('');
-  const [creatingMail, setCreatingMail] = useState(false);
-  const [prefilling, setPrefilling] = useState(false);
-
-  
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-
-  const [refreshing, setRefreshing] = useState(false);
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'Intéressé':
-        return 'bg-success text-success-foreground';
-      case 'Intéressé plus tard':
-        return 'bg-warning text-warning-foreground';
-      case 'Non réponse':
-        return 'bg-secondary text-secondary-foreground';
-      default:
-        return 'bg-muted text-muted-foreground';
+    } catch (err) {
+      console.error('Erreur chargement prompts:', err);
+      setError('Erreur lors du chargement des prompts');
+    } finally {
+      setIsPromptsLoading(false);
     }
   };
+
+  const fetchMailsGeneres = async () => {
+    setIsMailsLoading(true);
+    try {
+      const timestamp = new Date().getTime();
+      const res = await api.get(`/relance-mailsgen?_t=${timestamp}`);
+      setMailsGeneres(res.data);
+      setError(null);
+    } catch (err) {
+      console.error('Erreur chargement mails générés:', err);
+      setError('Erreur lors du chargement des mails générés');
+    } finally {
+      setIsMailsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrompts();
+    fetchMailsGeneres();
+  }, []);
+
+  // Logique pour que tous les statuts soient fermés au chargement
+  useEffect(() => {
+    if (prompts.length > 0) {
+      const statuses = prompts.map(p => p.statut || 'Non défini');
+      const uniqueStatuses = Array.from(new Set(statuses));
+
+      // Crée un objet où chaque statut est initialisé à 'true' (fermé/replié)
+      const initialCollapsedState: Record<string, boolean> = uniqueStatuses.reduce((acc, status) => {
+        acc[status] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+
+      setCollapsedStatuses(initialCollapsedState);
+    }
+  }, [prompts]);
+
+
+  const handleViewMail = (mail: any) => {
+    setSelectedMail(mail);
+    setEditedContent(mail.contenu);
+    setEditedSubject(mail.sujet);
+  };
+
+  const handleValidateMail = async (mail: MailGenere) => {
+    try {
+      setLoading(true);
+      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'Validé' });
+
+      setMailsGeneres(prev =>
+        prev.map(m => m.id === mail.id ? { ...m, statut: 'Validé' } : m)
+      );
+
+      if (selectedMail && selectedMail.id === mail.id) {
+        setSelectedMail(null);
+      }
+    } catch (error) {
+      console.error('Erreur validation mail:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectMail = async (mail: MailGenere) => {
+    try {
+      setLoading(true);
+      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'En attente' });
+
+      setMailsGeneres(prev =>
+        prev.map(m => m.id === mail.id ? { ...m, statut: 'En attente' } : m)
+      );
+    } catch (error) {
+      console.error('Erreur retour en attente (rejet):', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePendingMail = async (mail: MailGenere) => {
+    try {
+      setLoading(true);
+      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'En attente' });
+
+      setMailsGeneres(prev =>
+        prev.map(m => m.id === mail.id ? { ...m, statut: 'En attente' } : m)
+      );
+    } catch (error) {
+      console.error('Erreur mise en attente du mail:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMail = (mail: MailGenere) => {
+    setMailToDelete(mail);
+    setIsDeleteMailPopupOpen(true);
+  };
+
+  const confirmDeleteMail = async () => {
+    if (!mailToDelete) return;
+
+    try {
+      setLoading(true);
+      await api.delete(`/mailsgeneres/${mailToDelete.id}`);
+
+      setMailsGeneres(prev => prev.filter(m => m.id !== mailToDelete.id));
+
+      if (selectedMail && selectedMail.id === mailToDelete.id) {
+        setSelectedMail(null);
+      }
+
+      setIsDeleteMailPopupOpen(false);
+      setMailToDelete(null);
+    } catch (error) {
+      console.error('Erreur suppression mail:', error);
+      setError('Erreur lors de la suppression du mail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handleGenerateAIMails = async () => {
+    try {
+      setLoading(true);
+      const res = await api.post('/mailsgeneres/generate');
+
+      await fetchMailsGeneres();
+    } catch (error) {
+      console.error('Erreur génération mails IA:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedMail) return;
+
+    try {
+      setLoading(true);
+      await api.patch(`/mailsgeneres/${selectedMail.id}`, {
+        sujet: editedSubject,
+        contenu: editedContent
+      });
+
+      setMailsGeneres(prev =>
+        prev.map(m =>
+          m.id === selectedMail.id
+            ? { ...m, sujet: editedSubject, contenu: editedContent }
+            : m
+        )
+      );
+
+      setSelectedMail(null);
+    } catch (error) {
+      console.error('Erreur sauvegarde modifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePrompt = async (data: any) => {
+    try {
+      setLoading(true);
+      await api.post('/prompt', data);
+
+      fetchPrompts();
+      setIsPopupOpen(false);
+    } catch (error) {
+      console.error('Erreur sauvegarde prompt:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditPrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setIsModifierPopupOpen(true);
+  };
+
+  const handleDeletePrompt = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setIsSupprimerPopupOpen(true);
+  };
+
+  const getMailsCountForPrompt = (promptId: number): number => {
+    return mailsGeneres.filter(mail => mail.prompt_id === promptId).length;
+  };
+
+  const handlePromptSuccess = async () => {
+    await fetchPrompts();
+  };
+
+  const handlePromptClick = (promptId: number) => {
+    setSelectedPromptForFilter(promptId === selectedPromptForFilter ? null : promptId);
+  };
+
+  const handleResetFilter = () => {
+    setSelectedPromptForFilter(null);
+
+    // Ferme tous les accordéons en définissant tous les statuts à TRUE (replié)
+    const allStatusesCollapsed = Object.keys(groupedPrompts).reduce((acc, status) => {
+      acc[status] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+
+    setCollapsedStatuses(allStatusesCollapsed);
+  };
+
+  const generetemails = (prompt: Prompt) => {
+    setPrompts(prev => prev.map(p =>
+      p.id === prompt.id ? { ...p, utilise: p.utilise + 1 } : p
+    ));
+
+    try {
+      setLoading(true);
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-relancemailsgen-v1';
+      api.post(webhookUrl, {
+        prompt_id: prompt.id,
+        nom: prompt.nom,
+        categorie: prompt.categorie,
+        contenu: prompt.contenu,
+        timestamp: new Date().toISOString(),
+        mode: 'generate_emails',
+      });
+    } catch (error) {
+      console.error('Erreur génération mails pour le prompt:', error);
+      setPrompts(prev => prev.map(p =>
+        p.id === prompt.id ? { ...p, utilise: p.utilise - 1 } : p
+      ));
+    }
+
+    setTimeout(() => {
+      fetchMailsGeneres();
+      setLoading(false);
+    }, 25000);
+
+    fetchPrompts();
+  };
+
+  const filteredMails = selectedPromptForFilter
+    ? mailsGeneres.filter(mail => mail.prompt_id === selectedPromptForFilter)
+    : mailsGeneres;
 
   const getStatusBadge = (statut: string) => {
     switch (statut) {
@@ -131,327 +326,258 @@ const MailsRelance = () => {
     }
   };
 
-  const handleViewMail = (mail: any) => {
-    setSelectedMail(mail);
-    setEditedContent(mail.contenu);
-    setEditedSubject(mail.sujet);
+  const isCategoryValidated = (categorie: string, currentMailId: number): boolean => {
+    return mailsGeneres.some(mail =>
+      mail.categorie === categorie &&
+      mail.statut === 'Validé' &&
+      mail.id !== currentMailId
+    );
   };
 
-  const [savingId, setSavingId] = useState<number | null>(null);
-  const handleValidateMail = async (mail: any) => {
-    try {
-      setSavingId(mail.id);
-      await updateAiEmailResponse(mail.id, {
-        validated_by_admin: true,
-        validated_at: new Date().toISOString(),
-      });
-      
-      const res = await fetchAiEmailResponses(page, 15);
-      setItems(res.items);
-      setTotal(res.total);
-      forceStatsUpdate(); 
-    } catch (e) {
-      console.error(e);
-      setError('Erreur lors de la validation');
-    } finally {
-      setSavingId(null);
-    }
+  const shouldDisableValidate = (mail: MailGenere): boolean => {
+    return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
   };
 
-  const handleRejectMail = async (mail: any) => {
-    try {
-      setSavingId(mail.id);
-      await updateAiEmailResponse(mail.id, {
-        validated_by_admin: false,
-        validated_at: new Date().toISOString(),
-      });
-      const res = await fetchAiEmailResponses(page, 15);
-      setItems(res.items);
-      setTotal(res.total);
-      forceStatsUpdate(); 
-    } catch (e) {
-      console.error(e);
-      setError('Erreur lors du refus');
-    } finally {
-      setSavingId(null);
-    }
+  const shouldDisableReject = (mail: MailGenere): boolean => {
+    return (
+      loading ||
+      mail.statut === 'En attente' ||
+      isCategoryValidated(mail.categorie, mail.id)
+    );
   };
 
-  const handleGenerateRelanceMails = async () => {
-    // Appel du proxy backend pour éviter CORS et normaliser la réponse
-    try {
-      setPrefilling(true);
-      setError(null);
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8001';
-      const res = await fetch(`${apiBase}/api/prefill-relance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const isJson = res.headers.get('content-type')?.includes('application/json');
-      const data: any = isJson ? await res.json() : await res.text();
+  const shouldDisableDelete = (mail: MailGenere): boolean => {
+    return loading || mail.statut === 'Validé' || isCategoryValidated(mail.categorie, mail.id);
+  };
 
-      // Log console pour diagnostic
-      console.group('Prefill webhook');
-      console.log('raw response:', data);
-      console.log('content-type:', res.headers.get('content-type'));
-      console.groupEnd();
-
-      // Mapping robuste des champs possibles
-      const pickFirst = (obj: any, keys: string[]): string => {
-        if (!obj || typeof obj !== 'object') return '';
-        for (const k of keys) {
-          if (obj[k] != null && obj[k] !== '') return String(obj[k]);
-        }
-        return '';
-      };
-
-      let emailVal = '';
-      let subjectVal = '';
-      let messageVal = '';
-
-      if (typeof data === 'object' && data) {
-        emailVal = pickFirst(data, ['email', 'to', 'dest', 'recipient', 'adresse', 'mail']);
-        subjectVal = pickFirst(data, ['subject', 'sujet', 'title', 'objet']);
-        messageVal = pickFirst(data, ['message', 'body', 'content', 'texte', 'text']);
+  const groupedPrompts = useMemo(() => {
+    return prompts.reduce((acc, prompt) => {
+      const status = prompt.statut || 'Non défini';
+      if (!acc[status]) {
+        acc[status] = [];
       }
+      acc[status].push(prompt);
+      return acc;
+    }, {} as Record<string, Prompt[]>);
+  }, [prompts]);
 
-      // Toujours préremplir depuis la réponse du webhook (même vide) et ouvrir la modale;
-      setGenEmail(emailVal);
-      setGenSubject(subjectVal);
-      setGenMessage(messageVal);
-    } catch (e: any) {
-      console.error('Erreur prefill:', e);
-      setError("Impossible de préremplir via l’IA pour le moment.");
-      setGenEmail('');
-      setGenSubject('');
-      setGenMessage('');
-    } finally {
-      setPrefilling(false);
-      setShowGenerateIaModal(true);
-    }
+  const toggleStatus = (status: string) => {
+    setCollapsedStatuses(prev => ({
+      ...prev,
+      [status]: !prev[status],
+    }));
   };
-
-  const handleSaveEdit = async () => {
-    if (!selectedMail) return;
-    try {
-      setSavingId(selectedMail.id);
-      await updateAiEmailResponse(selectedMail.id, {
-        message: editedContent,
-        subject: editedSubject,
-      });
-      const res = await fetchAiEmailResponses(page, 15);
-      setItems(res.items);
-      setTotal(res.total);
-      forceStatsUpdate(); 
-      setSelectedMail(null);
-    } catch (e) {
-      console.error(e);
-      setError('Erreur lors de la sauvegarde');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
- 
-  const handleViewPrompt = (prompt: PromptRelance) => {
-    setSelectedPrompt(prompt);
-    setEditedPromptLabel(prompt.label);
-    setEditedPromptSubject(prompt.subject_template);
-    setEditedPromptMessage(prompt.message_template);
-    setEditingPrompt(false);
-  };
-
-  const handleEditPrompt = (prompt: PromptRelance) => {
-    setSelectedPrompt(prompt);
-    setEditedPromptLabel(prompt.label);
-    setEditedPromptSubject(prompt.subject_template);
-    setEditedPromptMessage(prompt.message_template);
-    setEditingPrompt(true);
-  };
-
-  const handleSavePrompt = async () => {
-    if (!selectedPrompt) return;
-    try {
-      setSavingId(selectedPrompt.id);
-      await updatePromptRelance(selectedPrompt.id, {
-        label: editedPromptLabel,
-        subject_template: editedPromptSubject,
-        message_template: editedPromptMessage,
-      });
-      
-      const res = await fetchPromptsRelance(1, 50);
-      setPromptsRelance(res.items || []);
-      setSelectedPrompt(null);
-      setEditingPrompt(false);
-    } catch (e) {
-      console.error(e);
-      setError('Erreur lors de la sauvegarde du prompt');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const handleDeletePrompt = async (prompt: PromptRelance) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce prompt ?')) return;
-    try {
-      setSavingId(prompt.id);
-      await deletePromptRelance(prompt.id);
-     
-      const res = await fetchPromptsRelance(1, 50);
-      setPromptsRelance(res.items || []);
-    } catch (e) {
-      console.error(e);
-      setError('Erreur lors de la suppression');
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  
-  const forceStatsUpdate = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 100);
-  };
-
-  const stats = useMemo(() => {
-    const toFr = (status?: string | null) => {
-      if (!status) return 'En attente';
-      const s = status.toLowerCase();
-      if (s.includes('valid')) return 'Validé';
-      if (s.includes('refus')) return 'Refusé';
-      return 'En attente';
-    };
-    const mapped = items.map((r) => toFr(r.prospect_status));
-    return {
-      total: typeof total === 'number' ? total : items.length,
-      enAttente: mapped.filter((s) => s === 'En attente').length,
-      valides: mapped.filter((s) => s === 'Validé').length,
-    };
-  }, [items, total, refreshing]); 
 
   return (
-    <Layout title="Gestion des mails de relance">
+    <Layout title="Gestion des mails à envoyer">
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .mail-item-disabled-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(255, 255, 255, 0.5);
+            cursor: not-allowed;
+            z-index: 10;
+        }
+        .dark .mail-item-disabled-overlay {
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+      `}</style>
+
       <div className="space-y-6">
-        {/* okk*/}
+        {error && (
+          <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={() => setShowNewPromptModal(true)} className="gap-2 border-1">
+          <Button
+            onClick={() => setIsPopupOpen(true)}
+            className="gap-2 border-[#8675E1] border-1"
+            disabled={loading}
+          >
             <Plus className="h-4 w-4" />
             Nouveau prompt
           </Button>
-          
-          <Button onClick={handleGenerateRelanceMails} className="gap-2 bg-gradient-primary border-1">
-            <Bot className="h-4 w-4" />
-            Générer relances IA
-          </Button>
-          
 
-          
           <div className="ml-auto flex gap-2">
-            <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
-              Valider le groupe
-              <Check className="h-4 w-4" />
-            </Button>
+
           </div>
         </div>
 
-        {/*ok */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <RefreshCw className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-sm text-muted-foreground">Total relances</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <Check className="h-8 w-8 mx-auto mb-2 text-success" />
-              <p className="text-2xl font-bold text-success">{stats.valides}</p>
-              <p className="text-sm text-muted-foreground">Validées</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <X className="h-8 w-8 mx-auto mb-2 text-warning" />
-              <p className="text-2xl font-bold text-warning">{stats.enAttente}</p>
-              <p className="text-sm text-muted-foreground">En attente</p>
-            </CardContent>
-          </Card>
-        </div>
-        {loading && (
-          <div className="text-sm text-muted-foreground">Chargement...</div>
-        )}
-        {refreshing && (
-          <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-200">
-            <RefreshCw className="h-4 w-4 inline mr-2 animate-spin" />
-            Rechargement des données...
-          </div>
-        )}
-        {error && (
-          <div className="text-sm text-destructive">{error}</div>
-        )}
-        {successMessage && (
-          <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md border border-green-200">
-            {successMessage}
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* SECTION: Prompts prédéfinis */}
+          <Card className="flex flex-col h-full overflow-hidden">
+            <CardHeader>
+              <CardTitle>Prompts Prédéfinis</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col h-[50vh] p-0">
+              {isPromptsLoading ? (
+                <div className="flex-grow flex items-center justify-center p-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="flex-grow overflow-y-auto hide-scrollbar">
+                  {/* Bouton "Tous" */}
+                  <div
+                    onClick={handleResetFilter}
+                    className={`p-4 border-b cursor-pointer transition-colors ${selectedPromptForFilter === null
+                      ? 'bg-primary/10 border-primary/20'
+                      : 'bg-background hover:bg-muted/50 border-border'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Tous les Prompts</h4>
+                      <Badge variant={selectedPromptForFilter === null ? "default" : "outline"}>
+                        {mailsGeneres.length}
+                      </Badge>
+                    </div>
+                  </div>
 
-        {/* yes*/}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="mails">Mails de Relance</TabsTrigger>
-            <TabsTrigger value="prompts">Prompts de Relance</TabsTrigger>
-          </TabsList>
-
-          {/* ohh */}
-          <TabsContent value="mails" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-3">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Mails de Relance Générés</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/*hi .*/}
-                      {items.length === 0 && !loading && (
-                        <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
-                          Aucun mail à afficher.
+                  {/* Statuts et prompts */}
+                  {Object.entries(groupedPrompts).map(([status, promptsList]) => {
+                    const isCollapsed = collapsedStatuses[status];
+                    return (
+                      <div key={status} className="border-b last:border-b-0">
+                        {/* En-tête de statut */}
+                        <div
+                          className="p-4 border-b cursor-pointer transition-colors hover:bg-muted/50 flex items-center justify-between"
+                          onClick={() => toggleStatus(status)}
+                        >
+                          <div className='flex items-center gap-2'>
+                            <h3 className="font-semibold text-sm">
+                              {status}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              {promptsList.length}
+                            </Badge>
+                          </div>
+                          {isCollapsed ?
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" /> :
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          }
                         </div>
-                      )}
-                      {items.map((row) => {
-                        const statut = (() => {
-                          
-                          if (row.email_dispatched === true || (row.sent_at && row.sent_at !== null)) return 'Envoyé';
-                          if (row.validated_by_admin === true) return 'Validé';
-                          if (row.validated_by_admin === false) return 'Refusé';
-                          return 'En attente';
-                        })();
-                        const toType = (ps?: string | null) => {
-                          const s = (ps || '').toLowerCase();
-                          if (s.includes('intéressé mais plus tard') || s.includes('interesse mais plus tard') || s.includes('intéressé plus tard')) return 'Intéressé plus tard';
-                          if (s.includes('intéress')) return 'Intéressé';
-                          if (s.includes('non') && s.includes('intéress')) return 'Non intéressé';
-                          if (s.includes('aucun')) return 'Aucun rapport';
-                          if (s.includes('non_class')) return 'Non classifié';
-                          return 'Non réponse';
-                        };
-                        const mail = {
-                          id: row.id,
-                          destinataire: row.email,
-                          sujet: row.subject,
-                          contenu: row.message,
-                          typeReponse: toType(row.prospect_status),
-                          statut,
-                          genereParIA: true,
-                          dateGeneration: row.created_at?.slice(0, 10) || '',
-                          mailOriginal: undefined,
-                        } as any;
-                        return (
-                        <div key={mail.id} className="p-4 border border-border rounded-lg">
+
+                        {/* Liste des prompts */}
+                        {!isCollapsed && (
+                          <div className="p-4 space-y-3">
+                            {promptsList.map((prompt) => {
+                              const mailsCount = getMailsCountForPrompt(prompt.id);
+                              const hasGeneratedMails = mailsCount > 0;
+                              const showUsageCount = prompt.utilise > 0;
+
+                              return (
+                                <div
+                                  key={prompt.id}
+                                  onClick={() => handlePromptClick(prompt.id)}
+                                  className={`p-3 border rounded-lg cursor-pointer transition-all ${selectedPromptForFilter === prompt.id
+                                    ? 'border-primary bg-primary/10 shadow-sm'
+                                    : 'border-border hover:border-primary/50 hover:shadow-sm'
+                                    }`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-medium text-sm">{prompt.nom}</h4>
+                                    <Badge variant="outline" className="text-xs">{prompt.categorie}</Badge>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                    {prompt.contenu}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-2">
+                                      {showUsageCount && (
+                                        <span>Utilisé {prompt.utilise} fois</span>
+                                      )}
+                                      {selectedPromptForFilter === prompt.id && (
+                                        <Badge variant="default" className="text-xs">
+                                          {mailsCount} mail(s)
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 px-2"
+                                          onClick={() => handleEditPrompt(prompt)}
+                                          disabled={loading}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 px-2"
+                                          onClick={() => generetemails(prompt)}
+                                          disabled={loading}
+                                        >
+                                          <Bot className="h-3 w-3" />
+                                        </Button>
+                                      </>
+
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2"
+                                        onClick={() => handleDeletePrompt(prompt)}
+                                        disabled={loading}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {prompts.length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground p-6">
+                      Aucun prompt trouvé.
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* SECTION: Liste des mails générés */}
+          <div className="lg:col-span-2">
+            <Card className="flex flex-col h-full overflow-hidden pb-6">
+              <CardHeader>
+                <CardTitle>Mails Générés</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-grow overflow-y-auto hide-scrollbar h-[60vh]">
+                {isMailsLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredMails.map((mail) => {
+                      const isAnotherMailValidated = isCategoryValidated(mail.categorie, mail.id);
+                      const isItemVisuallyDisabled = isAnotherMailValidated && mail.statut !== 'Validé';
+
+                      return (
+                        <div
+                          key={mail.id}
+                          className={`p-4 border rounded-lg relative ${isItemVisuallyDisabled ? 'opacity-60' : ''
+                            }`}
+                        >
+                          {isItemVisuallyDisabled && (
+                            <div className="mail-item-disabled-overlay rounded-lg"></div>
+                          )}
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
@@ -459,9 +585,6 @@ const MailsRelance = () => {
                                 {mail.genereParIA && (
                                   <Bot className="h-4 w-4 text-primary" />
                                 )}
-                                <Badge className={getTypeColor(mail.typeReponse)}>
-                                  {mail.typeReponse}
-                                </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground">{mail.destinataire}</p>
                               <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -472,113 +595,82 @@ const MailsRelance = () => {
                               {getStatusBadge(mail.statut)}
                             </div>
                           </div>
-                          
-                          <div className="flex items-center justify-between">
+
+                          <div className="flex items-center justify-between relative z-20">
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs">{mail.categorie}</Badge>
                               <span>{mail.dateGeneration}</span>
                             </div>
-                            
+
                             <div className="flex items-center gap-1">
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => handleViewMail(mail)}
-                                className="h-6 px-2 border"
+                                className="h-6 px-2"
+                                disabled={loading}
                               >
                                 <Eye className="h-3 w-3" />
                               </Button>
-                              
-                              {(mail.statut === 'En attente' || mail.statut === 'Refusé') && (
-                                <>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleValidateMail(mail)}
-                                    className="h-6 px-2 border"
-                                    disabled={savingId === mail.id}
-                                  >
-                                    <Check className="h-3 w-3" />
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleRejectMail(mail)}
-                                    className="h-6 px-2 border"
-                                    disabled={savingId === mail.id}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </>
-                              )}
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleValidateMail(mail)}
+                                className="h-6 px-2"
+                                disabled={shouldDisableValidate(mail)}
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRejectMail(mail)}
+                                className="h-6 px-2"
+                                disabled={shouldDisableReject(mail)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteMail(mail)}
+                                className={`h-6 px-2 ${shouldDisableDelete(mail) ? 'text-muted-foreground opacity-50 cursor-not-allowed' : 'text-destructive hover:bg-destructive/10'}`}
+                                disabled={shouldDisableDelete(mail)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           </div>
                         </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* yo */}
-          <TabsContent value="prompts" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Prompts de Relance par Type de Réponse</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {promptsRelance.map((prompt) => (
-                    <div key={prompt.id} className="p-4 border border-border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{prompt.label}</h4>
-                        <Badge className={getTypeColor((prompt.type_reponse || '').toLowerCase().includes('plus') ? 'Intéressé plus tard' : (prompt.type_reponse || '').toLowerCase().includes('intéress') ? 'Intéressé' : 'Non réponse')}>
-                          {prompt.type_reponse}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {prompt.message_template}
+                      );
+                    })}
+                    {filteredMails.length === 0 && mailsGeneres.length > 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-8">
+                        Aucun mail trouvé pour cette sélection.
                       </p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Utilisé {prompt.use_count ?? 0} fois</span>
-                        <div className="flex gap-1">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-6 px-2 border"
-                            onClick={() => handleEditPrompt(prompt)}
-                            disabled={savingId === prompt.id}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-6 px-2 border"
-                            onClick={() => handleViewPrompt(prompt)}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                    {mailsGeneres.length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-8">
+                        Aucun mail généré.
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
 
-        {/* hello*/}
+        {/* Modal d'édition de mail */}
         {selectedMail && (
-          <Modal>
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
-            <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
               <CardHeader>
-                <CardTitle>Éditer le mail de relance</CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle>Éditer le mail</CardTitle>
+                <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">À:</span>
                   <span className="font-medium">{selectedMail.destinataire}</span>
                   {selectedMail.genereParIA && (
@@ -587,9 +679,6 @@ const MailsRelance = () => {
                       IA
                     </Badge>
                   )}
-                  <Badge className={getTypeColor(selectedMail.typeReponse)}>
-                    {selectedMail.typeReponse}
-                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -602,7 +691,7 @@ const MailsRelance = () => {
                     className="w-full mt-1 px-3 py-2 border border-border rounded-md"
                   />
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-medium">Contenu</label>
                   <Textarea
@@ -612,356 +701,69 @@ const MailsRelance = () => {
                   />
                 </div>
 
-                {selectedMail.mailOriginal && (
-                  <div>
-                    <label className="text-sm font-medium">Message original du contact</label>
-                    <div className="mt-1 p-3 bg-muted rounded-md text-sm">
-                      {selectedMail.mailOriginal}
-                    </div>
-                  </div>
-                )}
-                
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setSelectedMail(null)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedMail(null)}
+                    disabled={loading}
+                  >
                     Annuler
                   </Button>
-                  <Button onClick={handleSaveEdit}>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={loading}
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Sauvegarder
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
-          </Modal>
-        )}
-
-        {/* big */}
-        {selectedPrompt && (
-          <Modal>
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
-              <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                <CardHeader>
-                  <CardTitle>
-                    {editingPrompt ? 'Modifier le prompt' : 'Visualiser le prompt'}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={getTypeColor((selectedPrompt.type_reponse || '').toLowerCase().includes('plus') ? 'Intéressé plus tard' : (selectedPrompt.type_reponse || '').toLowerCase().includes('intéress') ? 'Intéressé' : 'Non réponse')}>
-                      {selectedPrompt.type_reponse}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      Utilisé {selectedPrompt.use_count ?? 0} fois
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Nom du prompt</label>
-                    <input
-                      type="text"
-                      value={editedPromptLabel}
-                      onChange={(e) => setEditedPromptLabel(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      disabled={!editingPrompt}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Modèle de sujet</label>
-                    <input
-                      type="text"
-                      value={editedPromptSubject}
-                      onChange={(e) => setEditedPromptSubject(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      disabled={!editingPrompt}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Modèle de message</label>
-                    <Textarea
-                      value={editedPromptMessage}
-                      onChange={(e) => setEditedPromptMessage(e.target.value)}
-                      className="mt-1 min-h-[200px]"
-                      disabled={!editingPrompt}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end gap-2 pt-4">
-                    {editingPrompt && (
-                      <Button 
-                        variant="destructive" 
-                        onClick={() => handleDeletePrompt(selectedPrompt)}
-                        disabled={savingId === selectedPrompt.id}
-                      >
-                        Supprimer
-                      </Button>
-                    )}
-                    <Button variant="outline" onClick={() => setSelectedPrompt(null)}>
-                      {editingPrompt ? 'Annuler' : 'Fermer'}
-                    </Button>
-                    {editingPrompt && (
-                      <Button onClick={handleSavePrompt} disabled={savingId === selectedPrompt.id}>
-                        Sauvegarder
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </Modal>
-        )}
-
-        {/* lit */}
-        {showNewPromptModal && (
-          <Modal>
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
-              <Card className="w-full max-w-3xl">
-                <CardHeader>
-                  <CardTitle>Nouveau prompt</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
-                      {error}
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-sm font-medium">Nom du prompt</label>
-                    <input
-                      type="text"
-                      value={newPromptLabel}
-                      onChange={(e) => setNewPromptLabel(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      placeholder="Ex: Relance client intéressé"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Type de réponse</label>
-                    <select
-                      value={newPromptType}
-                      onChange={(e) => setNewPromptType(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                    >
-                      <option>Intéressé</option>
-                      <option>Intéressé plus tard</option>
-                      <option>Non réponse</option>
-                      <option>Non intéressé</option>
-                      <option>Aucun rapport</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Modèle de sujet</label>
-                    <input
-                      type="text"
-                      value={newPromptSubject}
-                      onChange={(e) => setNewPromptSubject(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      placeholder="Ex: Suivi de votre demande"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Modèle de message</label>
-                    <Textarea
-                      value={newPromptMessage}
-                      onChange={(e) => setNewPromptMessage(e.target.value)}
-                      className="mt-1 min-h-[160px]"
-                      placeholder="Ex: Cher client, nous avons bien reçu votre demande..."
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => {
-                      setShowNewPromptModal(false);
-                      setError(null);
-                    }}>Annuler</Button>
-                    <Button
-                      onClick={async () => {
-                        console.log('Validation des champs:', {
-                          label: newPromptLabel,
-                          type: newPromptType,
-                          subject: newPromptSubject,
-                          message: newPromptMessage
-                        });
-                        
-                        if (!newPromptLabel?.trim() || !newPromptSubject?.trim() || !newPromptMessage?.trim()) {
-                          setError('Veuillez remplir tous les champs (sans espaces vides)');
-                          return;
-                        }
-                        
-                        const payload = {
-                          label: newPromptLabel.trim(),
-                          type_reponse: newPromptType,
-                          subject_template: newPromptSubject.trim(),
-                          message_template: newPromptMessage.trim(),
-                          active: true,
-                        };
-                        
-                        console.log('Payload envoyé:', payload);
-                        
-                        try {
-                          setCreatingPrompt(true);
-                          setError(null); 
-                          
-                          console.log('Envoi de la requête de création...');
-                          const result = await createPromptRelance(payload);
-                          console.log('Résultat création prompt:', result);
-                          
-                          console.log('Rechargement des prompts...');
-                          const res = await fetchPromptsRelance(1, 50);
-                          console.log('Nouveaux prompts reçus:', res);
-                          setPromptsRelance(res.items || []);
-                          
-                          
-                          setTimeout(async () => {
-                            try {
-                              setRefreshing(true);
-                              console.log('Rechargement forcé des prompts...');
-                              const freshRes = await fetchPromptsRelance(1, 50);
-                              console.log('Prompts frais reçus:', freshRes);
-                              setPromptsRelance(freshRes.items || []);
-                              forceStatsUpdate(); 
-                            } catch (error) {
-                              console.error('Erreur rechargement forcé prompts:', error);
-                            } finally {
-                              setRefreshing(false);
-                            }
-                          }, 1000);
-                          
-                          console.log('Fermeture de la modale...');
-                          setShowNewPromptModal(false);
-                          setNewPromptLabel('');
-                          setNewPromptType('Non réponse');
-                          setNewPromptSubject('');
-                          setNewPromptMessage('');
-                          
-                          console.log('Création terminée avec succès');
-                          setSuccessMessage('Prompt créé avec succès !');
-                          setTimeout(() => setSuccessMessage(null), 3000);
-                        } catch (e) {
-                          console.error('Erreur création prompt:', e);
-                          setError('Erreur lors de la création du prompt: ' + (e.message || 'Erreur inconnue'));
-                        } finally {
-                          setCreatingPrompt(false);
-                        }
-                      }}
-                      disabled={creatingPrompt}
-                    >
-                      {creatingPrompt ? 'Création...' : 'Créer'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </Modal>
-        )}
-
-        {/*yaya */}
-        {showGenerateIaModal && (
-          <Modal>
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]">
-              <Card className="w-full max-w-3xl">
-                <CardHeader>
-                  <CardTitle>Générer une relance IA</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
-                      {error}
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-sm font-medium">Email destinataire</label>
-                    <input
-                      type="email"
-                      value={genEmail}
-                      onChange={(e) => setGenEmail(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      placeholder="client@exemple.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Sujet</label>
-                    <input
-                      type="text"
-                      value={genSubject}
-                      onChange={(e) => setGenSubject(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-border rounded-md"
-                      placeholder="Ex: Suivi de votre demande"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Message</label>
-                    <Textarea
-                      value={genMessage}
-                      onChange={(e) => setGenMessage(e.target.value)}
-                      className="mt-1 min-h-[160px]"
-                      placeholder="Ex: Cher client, nous avons bien reçu votre demande..."
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => {
-                      setShowGenerateIaModal(false);
-                      setError(null);
-                    }}>Annuler</Button>
-                    <Button
-                      onClick={async () => {
-                        if (!genEmail?.trim() || !genSubject?.trim() || !genMessage?.trim()) {
-                          setError('Veuillez renseigner email, sujet et message (sans espaces vides)');
-                          return;
-                        }
-                        try {
-                          setCreatingMail(true);
-                          setError(null);
-
-                          // Envoi DIRECT au webhook (depuis React). L'agent IA enregistrera ensuite dans Supabase.
-                          const webhookUrl = 'https://wfw.omega-connect.tech/webhook-test/53b181f1-7b25-4835-8509-c49f2db48b90';
-                          const resp = await fetch(webhookUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              email: genEmail.trim(),
-                              subject: genSubject.trim(),
-                              message: genMessage.trim(),
-                            }),
-                          });
-
-                          if (!resp.ok) {
-                            const txt = await resp.text().catch(() => '');
-                            throw new Error(`Webhook statut ${resp.status}. ${txt?.slice(0,200)}`);
-                          }
-
-                          // Informer l’utilisateur et fermer; l’agent enregistrera côté Supabase
-                          setShowGenerateIaModal(false);
-                          setSuccessMessage('Envoyé à l’IA. La version finale apparaîtra une fois enregistrée.');
-                          setTimeout(() => setSuccessMessage(null), 4000);
-
-                          // Optionnel: rafraîchir la liste après un court délai
-                          setTimeout(async () => {
-                            try {
-                              const res = await fetchAiEmailResponses(page, 50);
-                              setItems(res.items);
-                              setTotal(res.total);
-                            } catch {}
-                          }, 1500);
-                        } catch (e: any) {
-                          console.error('Erreur webhook direct:', e);
-                          setError('Erreur lors de l’envoi au webhook: ' + (e.message || 'Erreur inconnue'));
-                        } finally {
-                          setCreatingMail(false);
-                        }
-                      }}
-                      disabled={creatingMail}
-                    >
-                      {creatingMail ? 'Génération...' : 'Générer'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </Modal>
         )}
       </div>
+
+      <NouveauPromptPopup
+        isOpen={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        onSave={handleSavePrompt}
+        onRefreshPrompts={fetchPrompts}
+      />
+
+      <ModifierPromptPopup
+        isOpen={isModifierPopupOpen}
+        onClose={() => {
+          setIsModifierPopupOpen(false);
+          setSelectedPrompt(null);
+        }}
+        prompt={selectedPrompt}
+        onSuccess={handlePromptSuccess}
+      />
+
+      <SupprimerPromptPopup
+        isOpen={isSupprimerPopupOpen}
+        onClose={() => {
+          setIsSupprimerPopupOpen(false);
+          setSelectedPrompt(null);
+        }}
+        prompt={selectedPrompt}
+        onSuccess={handlePromptSuccess}
+        nombreMailsGeneres={selectedPrompt ? getMailsCountForPrompt(selectedPrompt.id) : 0}
+      />
+
+      <DeleteMailConfirmationPopup
+        isOpen={isDeleteMailPopupOpen}
+        onClose={() => {
+          setIsDeleteMailPopupOpen(false);
+          setMailToDelete(null);
+        }}
+        onConfirm={confirmDeleteMail}
+        mailSubject={mailToDelete?.sujet || ''}
+        mailRecipient={mailToDelete?.destinataire || ''}
+        loading={loading}
+      />
     </Layout>
   );
 };
 
-export default MailsRelance;
+export default MailsAEnvoyer;

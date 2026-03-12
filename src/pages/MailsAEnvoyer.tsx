@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Check, X, Bot, RefreshCw, Loader2, Eye } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Edit, Check, X, Bot, RefreshCw, Loader2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
-import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +9,7 @@ import { NouveauPromptPopup } from '@/components/mailaenvoyerpopup/NouveauPrompt
 import { ModifierPromptPopup } from '@/components/mailaenvoyerpopup/ModifierPromptPopup';
 import { SupprimerPromptPopup } from '@/components/mailaenvoyerpopup/SupprimerPromptPopup';
 import { api } from '@/api/api';
+import { DeleteMailConfirmationPopup } from '@/components/mailaenvoyerpopup/DeleteMailConfirmation';
 
 interface Prompt {
   id: number;
@@ -29,6 +29,7 @@ interface MailGenere {
   statut: string;
   genereParIA: boolean;
   dateGeneration: string;
+  prompt_id: number;
 }
 
 const MailsAEnvoyer = () => {
@@ -41,14 +42,18 @@ const MailsAEnvoyer = () => {
   const [selectedMail, setSelectedMail] = useState<any>(null);
   const [editedContent, setEditedContent] = useState('');
   const [editedSubject, setEditedSubject] = useState('');
-  
-  // États de chargement
+  const [isDeleteMailPopupOpen, setIsDeleteMailPopupOpen] = useState(false);
+  const [mailToDelete, setMailToDelete] = useState<MailGenere | null>(null);
+
+  const [selectedPromptForFilter, setSelectedPromptForFilter] = useState<number | null>(null);
+  // État gérant l'accordéon des catégories
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({}); // Initialisation par défaut
+
   const [isPromptsLoading, setIsPromptsLoading] = useState(false);
   const [isMailsLoading, setIsMailsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Charger les prompts ---
   const fetchPrompts = async () => {
     setIsPromptsLoading(true);
     try {
@@ -63,7 +68,6 @@ const MailsAEnvoyer = () => {
     }
   };
 
-  // --- Charger les mails générés ---
   const fetchMailsGeneres = async () => {
     setIsMailsLoading(true);
     try {
@@ -84,34 +88,22 @@ const MailsAEnvoyer = () => {
     fetchMailsGeneres();
   }, []);
 
-  const promptColumns = [
-    { key: 'nom', label: 'Nom du prompt', sortable: true },
-    { key: 'categorie', label: 'Catégorie', sortable: true },
-    { key: 'utilise', label: 'Utilisé', sortable: true },
-    { key: 'dateCreation', label: 'Date création', sortable: true }
-  ];
+  // Logique pour que toutes les catégories soient fermées au chargement (du code précédent)
+  useEffect(() => {
+    if (prompts.length > 0) {
+      const categories = prompts.map(p => p.categorie || 'Non classé');
+      const uniqueCategories = Array.from(new Set(categories));
 
-  const mailColumns = [
-    { key: 'destinataire', label: 'Destinataire', sortable: true },
-    { key: 'sujet', label: 'Sujet', sortable: true },
-    { key: 'categorie', label: 'Catégorie', sortable: true },
-    { key: 'statut', label: 'Statut', sortable: true },
-    { key: 'genereParIA', label: 'Généré par IA' },
-    { key: 'dateGeneration', label: 'Date génération', sortable: true }
-  ];
+      // Crée un objet où chaque catégorie est initialisée à 'true' (fermé/replié)
+      const initialCollapsedState: Record<string, boolean> = uniqueCategories.reduce((acc, category) => {
+        acc[category] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
 
-  const mailFilters = [
-    {
-      key: 'categorie',
-      label: 'Catégorie',
-      options: ['Tech', 'Commerce', 'Services', 'Autres']
-    },
-    {
-      key: 'statut',
-      label: 'Statut',
-      options: ['En attente', 'Validé', 'Refusé']
+      setCollapsedCategories(initialCollapsedState);
     }
-  ];
+  }, [prompts]);
+
 
   const handleViewMail = (mail: any) => {
     setSelectedMail(mail);
@@ -119,15 +111,19 @@ const MailsAEnvoyer = () => {
     setEditedSubject(mail.sujet);
   };
 
-  const handleValidateMail = async (mail: any) => {
+  // 📝 Changement 1/3: handleValidateMail met le statut à 'Validé'
+  const handleValidateMail = async (mail: MailGenere) => {
     try {
       setLoading(true);
       await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'Validé' });
-      
-      // Mise à jour immédiate de l'état
+
       setMailsGeneres(prev =>
         prev.map(m => m.id === mail.id ? { ...m, statut: 'Validé' } : m)
       );
+
+      if (selectedMail && selectedMail.id === mail.id) {
+        setSelectedMail(null);
+      }
     } catch (error) {
       console.error('Erreur validation mail:', error);
     } finally {
@@ -135,28 +131,73 @@ const MailsAEnvoyer = () => {
     }
   };
 
-  const handleRejectMail = async (mail: any) => {
+  // 📝 Changement 2/3: handleRejectMail (bouton X) met le statut à 'En attente'
+  const handleRejectMail = async (mail: MailGenere) => {
     try {
       setLoading(true);
-      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'Refusé' });
-      
-      // Mise à jour immédiate de l'état
+      // Au lieu de 'Refusé', on met le statut à 'En attente'
+      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'En attente' });
+
       setMailsGeneres(prev =>
-        prev.map(m => m.id === mail.id ? { ...m, statut: 'Refusé' } : m)
+        prev.map(m => m.id === mail.id ? { ...m, statut: 'En attente' } : m)
       );
     } catch (error) {
-      console.error('Erreur refus mail:', error);
+      console.error('Erreur retour en attente (rejet):', error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Cette fonction reste inchangée (elle est gérée par handleRejectMail maintenant)
+  const handlePendingMail = async (mail: MailGenere) => {
+    try {
+      setLoading(true);
+      await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'En attente' });
+
+      setMailsGeneres(prev =>
+        prev.map(m => m.id === mail.id ? { ...m, statut: 'En attente' } : m)
+      );
+    } catch (error) {
+      console.error('Erreur mise en attente du mail:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 📝 Changement 3/3: Nouvelle fonction pour supprimer un mail généré
+  const handleDeleteMail = (mail: MailGenere) => {
+    setMailToDelete(mail);
+    setIsDeleteMailPopupOpen(true);
+  };
+  const confirmDeleteMail = async () => {
+    if (!mailToDelete) return;
+
+    try {
+      setLoading(true);
+      await api.delete(`/mailsgeneres/${mailToDelete.id}`);
+
+      setMailsGeneres(prev => prev.filter(m => m.id !== mailToDelete.id));
+
+      if (selectedMail && selectedMail.id === mailToDelete.id) {
+        setSelectedMail(null);
+      }
+
+      setIsDeleteMailPopupOpen(false);
+      setMailToDelete(null);
+    } catch (error) {
+      console.error('Erreur suppression mail:', error);
+      setError('Erreur lors de la suppression du mail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const handleGenerateAIMails = async () => {
     try {
       setLoading(true);
       const res = await api.post('/mailsgeneres/generate');
-      
-      // Recharger les mails après génération
+
       await fetchMailsGeneres();
     } catch (error) {
       console.error('Erreur génération mails IA:', error);
@@ -175,7 +216,6 @@ const MailsAEnvoyer = () => {
         contenu: editedContent
       });
 
-      // Mise à jour immédiate de l'état
       setMailsGeneres(prev =>
         prev.map(m =>
           m.id === selectedMail.id
@@ -196,9 +236,8 @@ const MailsAEnvoyer = () => {
     try {
       setLoading(true);
       await api.post('/prompt', data);
-      
-      // Recharger les prompts après ajout
-      await fetchPrompts();
+
+      fetchPrompts();
       setIsPopupOpen(false);
     } catch (error) {
       console.error('Erreur sauvegarde prompt:', error);
@@ -217,9 +256,65 @@ const MailsAEnvoyer = () => {
     setIsSupprimerPopupOpen(true);
   };
 
+  const getMailsCountForPrompt = (promptId: number): number => {
+    return mailsGeneres.filter(mail => mail.prompt_id === promptId).length;
+  };
+
   const handlePromptSuccess = async () => {
     await fetchPrompts();
   };
+
+  const handlePromptClick = (promptId: number) => {
+    setSelectedPromptForFilter(promptId === selectedPromptForFilter ? null : promptId);
+  };
+
+  // 🔄 Correction de handleResetFilter pour fermer tous les accordéons
+  const handleResetFilter = () => {
+    setSelectedPromptForFilter(null);
+
+    // Ferme tous les accordéons en définissant toutes les catégories à TRUE (replié)
+    const allCategoriesCollapsed = Object.keys(groupedPrompts).reduce((acc, category) => {
+      acc[category] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+
+    setCollapsedCategories(allCategoriesCollapsed);
+  };
+
+  const generetemails = (prompt: Prompt) => {
+    setPrompts(prev => prev.map(p =>
+      p.id === prompt.id ? { ...p, utilise: p.utilise + 1 } : p
+    ));
+
+    try {
+      setLoading(true);
+      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/53b181f1-7b25-4835-8509-c49f2db48b9001-generate-by-using-prompt';
+      api.post(webhookUrl, {
+        prompt_id: prompt.id,
+        nom: prompt.nom,
+        categorie: prompt.categorie,
+        contenu: prompt.contenu,
+        timestamp: new Date().toISOString(),
+        mode: 'generate_emails',
+      });
+    } catch (error) {
+      console.error('Erreur génération mails pour le prompt:', error);
+      setPrompts(prev => prev.map(p =>
+        p.id === prompt.id ? { ...p, utilise: p.utilise - 1 } : p
+      ));
+    }
+
+    setTimeout(() => {
+      fetchMailsGeneres();
+      setLoading(false);
+    }, 25000);
+
+    fetchPrompts();
+  };
+
+  const filteredMails = selectedPromptForFilter
+    ? mailsGeneres.filter(mail => mail.prompt_id === selectedPromptForFilter)
+    : mailsGeneres;
 
   const getStatusBadge = (statut: string) => {
     switch (statut) {
@@ -234,6 +329,52 @@ const MailsAEnvoyer = () => {
     }
   };
 
+  const isCategoryValidated = (categorie: string, currentMailId: number): boolean => {
+    return mailsGeneres.some(mail =>
+      mail.categorie === categorie &&
+      mail.statut === 'Validé' &&
+      mail.id !== currentMailId
+    );
+  };
+
+  const shouldDisableValidate = (mail: MailGenere): boolean => {
+    // La validation est désactivée uniquement si le mail est déjà Validé ou en cours de chargement.
+    return loading || mail.statut === 'Validé';
+  };
+
+  const shouldDisableReject = (mail: MailGenere): boolean => {
+    // Le bouton X est désactivé si le mail est déjà en attente ou en cours de chargement.
+    return (
+      loading ||
+      mail.statut === 'En attente'
+    );
+  };
+
+  // NOUVELLE FONCTION : Désactiver le bouton de suppression
+  const shouldDisableDelete = (mail: MailGenere): boolean => {
+    // Le bouton de suppression est désactivé uniquement si le mail est en cours de chargement.
+    return loading;
+  };
+
+  const groupedPrompts = useMemo(() => {
+    return prompts.reduce((acc, prompt) => {
+      const category = prompt.categorie || 'Non classé';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(prompt);
+      return acc;
+    }, {} as Record<string, Prompt[]>);
+  }, [prompts]);
+
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => ({
+      ...prev,
+      // La logique de bascule est la bonne : !prev[category]
+      [category]: !prev[category],
+    }));
+  };
+
   return (
     <Layout title="Gestion des mails à envoyer">
       <style>{`
@@ -244,99 +385,173 @@ const MailsAEnvoyer = () => {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
+        .mail-item-disabled-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(255, 255, 255, 0.5);
+            cursor: not-allowed;
+            z-index: 10;
+        }
+        .dark .mail-item-disabled-overlay {
+            background-color: rgba(0, 0, 0, 0.3);
+        }
       `}</style>
 
       <div className="space-y-6">
-        {/* Affichage des erreurs */}
         {error && (
           <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
-        {/* SECTION: Actions principales */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button 
-            onClick={() => setIsPopupOpen(true)} 
+          <Button
+            onClick={() => setIsPopupOpen(true)}
             className="gap-2 border-[#8675E1] border-1"
             disabled={loading}
           >
             <Plus className="h-4 w-4" />
             Nouveau prompt
           </Button>
-          
-          
+
           <div className="ml-auto flex gap-2">
-            <Button 
-              variant="outline" 
-              className="gap-2 border-[#8675E1] border-2 text-[#8675E1]"
-              onClick={() => {
-                fetchPrompts();
-                fetchMailsGeneres();
-              }}
-              disabled={isPromptsLoading || isMailsLoading}
-            >
-              {isPromptsLoading || isMailsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Synchroniser
-            </Button>
-            <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
-              Valider le groupe
-              <Check className="h-4 w-4" />
-            </Button>
+
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* SECTION: Prompts prédéfinis */}
-          <Card className="flex flex-col h-full overflow-hidden pb-15">
+          <Card className="flex flex-col h-full overflow-hidden">
             <CardHeader>
               <CardTitle>Prompts Prédéfinis</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col h-[50vh] p-0">
               {isPromptsLoading ? (
-                <div className="flex-grow h-40 flex items-center justify-center p-6">
+                <div className="flex-grow flex items-center justify-center p-6">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : (
-                <div className="flex-grow h-40 space-y-4 overflow-y-auto hide-scrollbar px-6 pt-0 pb-3">
-                  {prompts.map((prompt) => (
-                    <div key={prompt.id} className="p-4 border border-border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{prompt.nom}</h4>
-                        <Badge variant="outline">{prompt.categorie}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {prompt.contenu}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Utilisé {prompt.utilise} fois</span>
-                        <div className="flex gap-1">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-6 px-2 border"
-                            onClick={() => handleEditPrompt(prompt)}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-6 px-2 border"
-                            onClick={() => handleDeletePrompt(prompt)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
+                <div className="flex-grow overflow-y-auto hide-scrollbar">
+                  {/* Bouton "Tous" */}
+                  <div
+                    onClick={handleResetFilter}
+                    className={`p-4 border-b cursor-pointer transition-colors ${selectedPromptForFilter === null
+                      ? 'bg-primary/10 border-primary/20'
+                      : 'bg-background hover:bg-muted/50 border-border'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Tous les Prompts</h4>
+                      <Badge variant={selectedPromptForFilter === null ? "default" : "outline"}>
+                        {mailsGeneres.length}
+                      </Badge>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Catégories et prompts */}
+                  {Object.entries(groupedPrompts).map(([category, promptsList]) => {
+                    // Vérifie si la catégorie est repliée (true = fermé, false = ouvert)
+                    const isCollapsed = collapsedCategories[category];
+                    return (
+                      <div key={category} className="border-b last:border-b-0">
+                        {/* En-tête de catégorie */}
+                        <div
+                          className="p-4 border-b cursor-pointer transition-colors hover:bg-muted/50 flex items-center justify-between"
+                          onClick={() => toggleCategory(category)}
+                        >
+                          <div className='flex items-center gap-2'>
+                            <h3 className="font-semibold text-sm">
+                              {category}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              {promptsList.length}
+                            </Badge>
+                          </div>
+                          {isCollapsed ?
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" /> :
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          }
+                        </div>
+
+                        {/* Liste des prompts */}
+                        {!isCollapsed && (
+                          <div className="p-4 space-y-3">
+                            {promptsList.map((prompt) => {
+                              const mailsCount = getMailsCountForPrompt(prompt.id);
+                              const hasGeneratedMails = mailsCount > 0;
+                              const showUsageCount = prompt.utilise > 0;
+
+                              return (
+                                <div
+                                  key={prompt.id}
+                                  onClick={() => handlePromptClick(prompt.id)}
+                                  className={`p-3 border rounded-lg cursor-pointer transition-all ${selectedPromptForFilter === prompt.id
+                                    ? 'border-primary bg-primary/10 shadow-sm'
+                                    : 'border-border hover:border-primary/50 hover:shadow-sm'
+                                    }`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-medium text-sm">{prompt.nom}</h4>
+                                    <Badge variant="outline" className="text-xs">{prompt.categorie}</Badge>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                    {prompt.contenu}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-2">
+                                      {showUsageCount && (
+                                        <span>Utilisé {prompt.utilise} fois</span>
+                                      )}
+                                      {selectedPromptForFilter === prompt.id && (
+                                        <Badge variant="default" className="text-xs">
+                                          {mailsCount} mail(s)
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 px-2"
+                                          onClick={() => handleEditPrompt(prompt)}
+                                          disabled={loading}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 px-2"
+                                          onClick={() => generetemails(prompt)}
+                                          disabled={loading}
+                                        >
+                                          <Bot className="h-3 w-3" />
+                                        </Button>
+                                      </>
+
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2"
+                                        onClick={() => handleDeletePrompt(prompt)}
+                                        disabled={loading}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
                   {prompts.length === 0 && (
-                    <p className="text-center text-sm text-muted-foreground pt-3">
+                    <p className="text-center text-sm text-muted-foreground p-6">
                       Aucun prompt trouvé.
                     </p>
                   )}
@@ -347,79 +562,107 @@ const MailsAEnvoyer = () => {
 
           {/* SECTION: Liste des mails générés */}
           <div className="lg:col-span-2">
-            <Card className="flex flex-col h-full overflow-hidden  pb-10">
+            <Card className="flex flex-col h-full overflow-hidden pb-6">
               <CardHeader>
                 <CardTitle>Mails Générés</CardTitle>
               </CardHeader>
-              <CardContent className="flex-grow overflow-y-auto hide-scrollbar">
+              <CardContent className="flex-grow overflow-y-auto hide-scrollbar h-[60vh]">
                 {isMailsLoading ? (
-                  <div className="flex items-center justify-center" style={{ height: '50vh' }}>
+                  <div className="flex items-center justify-center h-64">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 ) : (
-                  <div className="space-y-4" style={{ height: '50vh' }}>
-                    {mailsGeneres.map((mail) => (
-                      <div key={mail.id} className="p-4 border border-border rounded-lg">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium">{mail.sujet}</h4>
-                              {mail.genereParIA && (
-                                <Bot className="h-4 w-4 text-primary" />
-                              )}
+                  <div className="space-y-4">
+                    {filteredMails.map((mail) => {
+                      const isItemVisuallyDisabled = false; // Suppression de la logique d'opacité basée sur la catégorie
+
+                      return (
+                        <div
+                          key={mail.id}
+                          className={`p-4 border rounded-lg relative ${isItemVisuallyDisabled ? 'opacity-60' : ''
+                            }`}
+                        >
+                          {isItemVisuallyDisabled && (
+                            <div className="mail-item-disabled-overlay rounded-lg"></div>
+                          )}
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium">{mail.sujet}</h4>
+                                {mail.genereParIA && (
+                                  <Bot className="h-4 w-4 text-primary" />
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{mail.destinataire}</p>
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {mail.contenu}
+                              </p>
                             </div>
-                            <p className="text-sm text-muted-foreground">{mail.destinataire}</p>
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                              {mail.contenu}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(mail.statut)}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(mail.statut)}
+
+                          <div className="flex items-center justify-between relative z-20">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs">{mail.categorie}</Badge>
+                              <span>{mail.dateGeneration}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {/* Bouton Voir */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleViewMail(mail)}
+                                className="h-6 px-2"
+                                disabled={loading}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+
+                              {/* Bouton Valider (Check) */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleValidateMail(mail)}
+                                className="h-6 px-2"
+                                disabled={shouldDisableValidate(mail)}
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+
+                              {/* Bouton Rejeter/Retour En Attente (X) */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRejectMail(mail)} // Utilise la fonction modifiée pour mettre en 'En attente'
+                                className="h-6 px-2"
+                                disabled={shouldDisableReject(mail)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+
+                              {/* Bouton Supprimer (Trash2) - NOUVEAU */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteMail(mail)}
+                                className={`h-6 px-2 ${shouldDisableDelete(mail) ? 'text-muted-foreground opacity-50 cursor-not-allowed' : 'text-destructive hover:bg-destructive/10'}`}
+                                disabled={shouldDisableDelete(mail)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="text-xs">{mail.categorie}</Badge>
-                            <span>{mail.dateGeneration}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => handleViewMail(mail)}
-                              className="h-6 px-2 border"
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            
-                            {mail.statut === 'En attente' && (
-                              <>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => handleValidateMail(mail)}
-                                  className="h-6 px-2 border"
-                                  disabled={loading}
-                                >
-                                  <Check className="h-3 w-3" />
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => handleRejectMail(mail)}
-                                  className="h-6 px-2 border"
-                                  disabled={loading}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {filteredMails.length === 0 && mailsGeneres.length > 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-8">
+                        Aucun mail trouvé pour cette sélection.
+                      </p>
+                    )}
                     {mailsGeneres.length === 0 && (
                       <p className="text-center text-sm text-muted-foreground py-8">
                         Aucun mail généré.
@@ -432,7 +675,7 @@ const MailsAEnvoyer = () => {
           </div>
         </div>
 
-        {/* SECTION: Modal d'édition de mail */}
+        {/* Modal d'édition de mail */}
         {selectedMail && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -452,14 +695,14 @@ const MailsAEnvoyer = () => {
               <CardContent className="space-y-4">
                 <div>
                   <label className="text-sm font-medium">Sujet</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={editedSubject}
                     onChange={(e) => setEditedSubject(e.target.value)}
                     className="w-full mt-1 px-3 py-2 border border-border rounded-md"
                   />
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-medium">Contenu</label>
                   <Textarea
@@ -468,16 +711,16 @@ const MailsAEnvoyer = () => {
                     className="mt-1 min-h-[200px]"
                   />
                 </div>
-                
+
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setSelectedMail(null)}
                     disabled={loading}
                   >
                     Annuler
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleSaveEdit}
                     disabled={loading}
                   >
@@ -516,6 +759,19 @@ const MailsAEnvoyer = () => {
         }}
         prompt={selectedPrompt}
         onSuccess={handlePromptSuccess}
+        nombreMailsGeneres={selectedPrompt ? getMailsCountForPrompt(selectedPrompt.id) : 0}
+      />
+
+      <DeleteMailConfirmationPopup
+        isOpen={isDeleteMailPopupOpen}
+        onClose={() => {
+          setIsDeleteMailPopupOpen(false);
+          setMailToDelete(null);
+        }}
+        onConfirm={confirmDeleteMail}
+        mailSubject={mailToDelete?.sujet || ''}
+        mailRecipient={mailToDelete?.destinataire || ''}
+        loading={loading}
       />
     </Layout>
   );
