@@ -25,7 +25,7 @@ interface MailGenere {
   prompt_id: number;
 }
 
-interface B2b_manual {
+interface B2b_datasynch {
   id: number;
   full_name: string;
   email: string;
@@ -91,14 +91,14 @@ const EnvoiMasse = () => {
   const [loading, setLoading] = useState(true);
   const [mailsGeneres, setMailsGeneres] = useState<MailGenere[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [contacts, setContacts] = useState<B2b_manual[]>([]);
+  const [contacts, setContacts] = useState<B2b_datasynch[]>([]);
   const [historique, sethistorique] = useState<historique[]>([]);
   const [statusMails, setstatusMails] = useState<realtimestatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
 
 
-  const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/simulate-progress-n8n-v1';
+  const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook-test/simulate-progress';
   const WEBHOOK_URL_RELANCE = 'https://n8n.omega-connect.tech/webhook/simulate-progress-relance';
 
 
@@ -135,8 +135,9 @@ const EnvoiMasse = () => {
 
   const fetchContacts = async () => {
     try {
-      const res = await api.get("/b2b_manual");
+      const res = await api.get("/b2b_datasynch");
       setContacts(res.data);
+     
       return res.data;
     } catch (err) {
       console.error("Erreur chargement contacts:", err);
@@ -157,7 +158,7 @@ const EnvoiMasse = () => {
   const fetchMailsGeneres = async () => {
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/mailsgeneres?_t=${timestamp}`);
+      const res = await api.get(`/mailsgeneres`);
       setMailsGeneres(res.data);
       setError(null);
       return res.data;
@@ -195,22 +196,7 @@ const EnvoiMasse = () => {
 
           // 5. Utiliser la Map (Opération synchrone !) dans le .filter()
           const contactInfo: Contact[] = contactsData
-            .filter((contact: B2b_manual) => {
-              // Récupération SYNCHRONE du nom de la catégorie depuis la Map
-              const contactCategory = categoryMap.get(contact.category_id);
-
-              // Vérifie si la catégorie existe et si le nom correspond au mail
-              return contactCategory && contactCategory.name === mail.categorie;
-            })
-            // Le .map() reste synchrone, il est correct
-            .map((contact: B2b_manual) => ({
-              id: contact.id,
-              full_name: contact.full_name,
-              email: contact.email,
-              company: contact.company,
-              // Optionnel: On peut maintenant inclure le nom de la catégorie résolu ici aussi
-              category: categoryMap.get(contact.category_id)?.name || 'Inconnue'
-            }));
+            
 
           // Le reste de la logique de construction de mailInfo reste inchangé
           const mailInfo: MessageCategory = {
@@ -254,7 +240,7 @@ const EnvoiMasse = () => {
   const handleSendIndividual = async (contactId: number, categoryId: number) => {
     const category = messagesCategories.find(cat => cat.id === categoryId);
     const contact = category?.contacts.find(c => c.id === contactId);
-
+   
     if (!category || !contact) {
       toast({
         title: "Erreur",
@@ -703,6 +689,7 @@ const EnvoiMasse = () => {
                               size="sm"
                               variant="outline"
                               className="h-7 ml-2 flex-shrink-0 gap-1"
+                              
                               onClick={() => handleSendIndividual(contact.id, selectedCategory.id)}
                               disabled={isRunning || selectedCategory.isSending || loading}
                             >

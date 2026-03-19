@@ -11,7 +11,7 @@ const ConfirmRegistration = () => {
     const [status, setStatus] = useState<'loading' | 'success' | 'expired' | 'error'>('loading');
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-
+    const [errorDetail, setErrorDetail] = useState('');
     const name = searchParams.get('name');
     const email = searchParams.get('email');
     const password = searchParams.get('password');
@@ -19,6 +19,7 @@ const ConfirmRegistration = () => {
 
     useEffect(() => {
         const confirmAndCreateAccount = async () => {
+            
             if (!name || !email || !password || !ts) {
                 setStatus('error');
                 setIsLoading(false);
@@ -30,21 +31,20 @@ const ConfirmRegistration = () => {
             const requestTime = parseInt(ts);
             const diffMinutes = (now - requestTime) / (1000 * 60);
 
-            if (diffMinutes > 2) {
+            /*if (diffMinutes > 2) {
                 setStatus('expired');
                 setIsLoading(false);
                 return;
-            }
+            }*/
 
             try {
                 // 2. Créer le compte
                 await api.post('/users', {
-                    name,
-                    email,
-                    password,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    role: 'Rédacteur'
+                    name:name,
+                    email:email,
+                    password:password,
+                    password_confirmation:password,
+                    role: 'Rédacteur',
                 });
 
                 setStatus('success');
@@ -55,6 +55,7 @@ const ConfirmRegistration = () => {
             } catch (err) {
                 console.error("Erreur de confirmation:", err);
                 setStatus('error');
+                setErrorDetail(JSON.stringify(err.response?.data || err.message));
             } finally {
                 setIsLoading(false);
             }
@@ -135,7 +136,9 @@ const ConfirmRegistration = () => {
                                     <h3 className="text-2xl font-bold text-white">Erreur</h3>
                                     <p className="text-zinc-400">
                                         Une erreur est survenue lors de la confirmation de votre compte.
+                                   
                                     </p>
+                                    
                                 </div>
                                 <Button
                                     className="w-full bg-zinc-800 hover:bg-zinc-700 text-white"

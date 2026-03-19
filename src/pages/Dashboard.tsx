@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 const Dashboard = () => {
   const [contacts, setContacts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [envoyees, setEnvoyees] = useState<any[]>([]);
+  const [responses, setResponse] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showCategoryScrollTop, setShowCategoryScrollTop] = useState(false);
@@ -48,10 +50,16 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [contactsRes, categoriesRes] = await Promise.all([
-          api.get('/b2b_manual'),
-          api.get('/categories')
-        ]);
+        const contactsRes = await api.get("/b2b_datasynch");
+        const categoriesRes = await api.get("/categories");
+        const envoyer = await api.get("/realtimestatus");
+        const recu = await api.get("/b2b_mailsreponses");
+        
+        const mappedData = recu.data
+                .filter((item: any) => item.expediteur !== null)
+                .filter((item: any) => item.statut !== 'Aucun rapport')
+        setResponse(mappedData)
+        setEnvoyees(envoyer.data)
         setContacts(contactsRes.data);
         setCategories(categoriesRes.data);
       } catch (err) {
@@ -73,14 +81,14 @@ const Dashboard = () => {
     },
     {
       title: 'Mails Envoyés',
-      value: '1,243',
+      value: envoyees.length.toLocaleString(),
       description: 'Ce mois-ci',
       icon: Send,
       trend: { value: 8, isPositive: true }
     },
     {
       title: 'Réponses Reçues',
-      value: '187',
+      value: responses.length.toLocaleString(),
       description: 'Taux de réponse: 15%',
       icon: Reply,
       trend: { value: 3, isPositive: true }
@@ -115,11 +123,20 @@ const Dashboard = () => {
       c.source?.toLowerCase() === "ajout manuel" ||
       c.source?.toLowerCase() === "manuel"
   ).length;
+   const societecount = contacts.filter(
+    (c) =>
+      c.source?.toLowerCase() === "societe"
+  ).length;
+   const googlecount = contacts.filter(
+    (c) =>
+      c.source?.toLowerCase() === "google map" 
+  ).length;
 
   const scrapingSources = [
-    { name: 'Google Maps', status: 'active', lastSync: '2 min ago', contacts: 1523 },
+    { name: 'Google Maps', status: 'active', lastSync: '2 min ago', contacts: googlecount },
     { name: 'Phantombuster', status: 'active', lastSync: '1h ago', contacts: phantombusterCount },
-    { name: 'Manuel', status: 'active', lastSync: 'Continu', contacts: manuelCount }
+    { name: 'Manuel', status: 'active', lastSync: 'Continu', contacts: manuelCount },
+    { name: 'Societé', status: 'active', lastSync: 'Continu', contacts: societecount }
   ];
 
   const recentActivity = [

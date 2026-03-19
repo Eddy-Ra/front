@@ -47,12 +47,15 @@ const Register = () => {
             }
 
             // 2. Envoyer au webhook n8n pour confirmation
-            const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
+            //const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
+             const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook-test/58542790-7cf2-4f78-8e26-5bade7374186';
 
             const confirmationLink = `${window.location.origin}${window.location.pathname}#/confirm-registration?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&ts=${Date.now()}`;
 
             await api.post(WEBHOOK_URL, {
                 email: email,
+                name:name,
+                password:password,
                 reset_link: confirmationLink,
                 timestamp: new Date().toISOString()
             });

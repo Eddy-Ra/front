@@ -28,7 +28,7 @@ const Login = () => {
 
     try {
       // 1. Récupérer tous les utilisateurs
-      const res = await api.get('/users');
+      const res = await api.get('/user');
       const users = res.data;
 
       // 2. Trouver l'utilisateur par email
@@ -46,7 +46,7 @@ const Login = () => {
       if (isMatch) {
         // Mettre à jour le statut actif
         try {
-          await api.patch(`/users/${user.id}`, { is_active: true });
+          await api.patch(`/user/${user.id}`, { is_active: true });
           // Mettre à jour l'objet user local aussi
           user.is_active = true;
         } catch (e) {

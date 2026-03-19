@@ -58,7 +58,7 @@ const MailsAEnvoyer = () => {
     setIsPromptsLoading(true);
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/prompt?_t=${timestamp}`);
+      const res = await api.get(`/prompt`);
       setPrompts(res.data);
     } catch (err) {
       console.error('Erreur chargement prompts:', err);
@@ -72,7 +72,7 @@ const MailsAEnvoyer = () => {
     setIsMailsLoading(true);
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/mailsgeneres?_t=${timestamp}`);
+      const res = await api.get(`/mailsgeneres`);
       setMailsGeneres(res.data);
       setError(null);
     } catch (err) {

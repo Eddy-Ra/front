@@ -29,33 +29,24 @@ const MailsReponses = () => {
 
   const fetchReponses = async () => {
     try {
-      const res = await api.get("/b2b_response_mail");
+      const res = await api.get("/b2b_mailsreponses");
 
-      // Mapping des données API vers l'interface Reponse
-      const mappedData = res.data.map((item: any) => {
-        // Extraction de l'expéditeur (pour séparer Nom et Email si format "Nom <email>")
-        const fromMatch = item.From.match(/^(.*?) <(.*?)>$/);
-        const expediteurName = fromMatch ? fromMatch[1].replace(/"/g, '') : item.From;
-        // const expediteurEmail = fromMatch ? fromMatch[2] : ''; // Si besoin plus tard
-
-        // Mapping du statut
-        let statutUI = 'Non intéressé'; // Défaut
-        if (item.status_ === 'Intéressés') statutUI = 'Intéressé';
-        if (item.status_ === 'Plus tard') statutUI = 'Intéressé plus tard';
-        if (item.status_ === 'Non intéressés') statutUI = 'Non intéressé';
-
-        return {
+      const mappedData = res.data
+        .filter((item: any) => item.expediteur !== null)
+        .filter((item: any) => item.statut !== 'Aucun rapport')// Ignore les lignes vides et Aucun rapport (ex: id=2)
+        .map((item: any) => ({
           id: item.id,
-          expediteur: expediteurName,
-          sujet: item.Subject,
-          contenu: item.snippet,
-          mailOriginal: 'Non disponible via API pour le moment', // Placeholder car non présent dans l'objet API fourni
-          statut: statutUI,
-          dateReponse: new Date(item.created_at).toLocaleString(),
-          entreprise: 'Inconnue', // Pas de champ entreprise dans l'API fournie
-          categorie: item.labels.includes('CATEGORY_PERSONAL') ? 'Personal' : 'Autre' // Tentative extraction simple
-        };
-      });
+          expediteur: item.expediteur ?? 'Inconnu',
+          sujet: item.sujet ?? 'Sans sujet',
+          contenu: item.contenu ?? '',
+          mailOriginal: item.mailOriginal ?? '',
+          statut: item.statut ?? 'Non intéressé',
+          dateReponse: item.dateReponse 
+            ? new Date(item.dateReponse).toLocaleDateString() 
+            : 'Date inconnue',
+          entreprise: item.entreprise ?? 'Inconnue',
+          categorie: item.categorie ?? 'Autre',
+        }));
 
       setReponses(mappedData);
     } catch (err) {

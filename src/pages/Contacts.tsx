@@ -9,14 +9,14 @@ import { api } from "@/api/api";
 import { CategoryPopup } from "../components/CategoryPopup";
 import { DeleteConfirmationPopup } from "../components/DeleteConfirmationPopup";
 import { ContactDeleteConfirmationPopup } from "@/components/ContactDeleteConfirmationPopup";
-import { ContactPopup } from "../components/ContactPopup"; // Assurez-vous que ce composant est bien importé
+import { ContactPopup } from "../components/ContactPopup";
 
 const Contacts = () => {
   const [contacts, setContacts] = useState<any[]>([]); // Utilisé si nécessaire ailleurs
   const [categories, setCategories] = useState<any[]>([]);
   const [contactManual, setContactManual] = useState<any[]>([]); // Source de vérité pour la DataTable
   
-  // 🔑 NOUVEAU: État pour le filtre de catégorie sélectionnée (Stocke le NOM de la catégorie)
+  // 🔑 État pour le filtre de catégorie sélectionnée (Stocke le NOM de la catégorie)
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
 
   const [isPopupOpen, setIsPopupOpen] = useState(false);
@@ -45,36 +45,31 @@ const Contacts = () => {
     return contactsList.filter(contact => contact.category_id === categoryId).length;
   };
 
-  const fetchContacts = async () => {
-    try {
-      const res = await api.get("/b2b_manual");
-      setContacts(res.data);
-    } catch (err) {
-      console.error("Erreur chargement contacts:", err);
-    }
-  };
-
-  const fetchContactsManual = async () => {
-    // 🔑 On utilise `setLoading(true)` ici pour que la DataTable commence à charger immédiatement
+  // 🔑 NOUVELLE FONCTION UNIFIÉE : Récupère à la fois /b2b_manual et /societe
+  const fetchAllContacts = async () => {
+    // On utilise `setLoading(true)` ici pour que la DataTable commence à charger immédiatement
     setLoading(true);
     try {
-      const res = await api.get("/b2b_manual");
-      setContactManual(res.data);
+      const res = await api.get("/b2b_datasynch");
+      
+  
+      setContactManual(res.data); // Met à jour la source de vérité de notre DataTable
+      setContacts(res.data); // Au cas où ce soit utilisé pour d'autres traitements
+      
       return res.data;
     } catch (err) {
-      console.error("Erreur chargement contacts manuels:", err);
+      console.error("Erreur chargement de l'ensemble des contacts:", err);
       return [];
-    } finally {
-      // 🔑 On remet setLoading(false) après la fin de la chaîne d'appels dans l'useEffect pour être précis
     }
+    // Le setLoading(false) est géré à la fin de loadData()
   };
 
   const fetchCategories = async (manualContacts: any[] = contactManual) => {
     setIsCategoriesLoading(true);
     try {
       const timestamp = new Date().getTime();
-      const res = await api.get(`/categories?_t=${timestamp}`);
-
+      const res = await api.get('/categories');
+      
       // CALCUL DU COMPTAGE
       const categoriesWithCount = res.data.map((cat: any, index: number) => {
         const contact_count = getContactCount(cat.id, manualContacts);
@@ -85,7 +80,6 @@ const Contacts = () => {
           contact_count: contact_count,
         };
       });
-
       setCategories(categoriesWithCount);
     } catch (err) {
       console.error("Erreur chargement catégories:", err);
@@ -96,23 +90,32 @@ const Contacts = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      // Le setLoading(true) a déjà été appelé dans fetchContactsManual
-      const manualContacts = await fetchContactsManual();
-      await fetchCategories(manualContacts);
-      fetchContacts();
+      // 🔑 Utilisation de la fonction unifiée
+      const allContacts = await fetchAllContacts();
+      await fetchCategories(allContacts);
+      
       // On arrête le loading général seulement après que tout soit chargé
       setLoading(false); 
     }
     loadData();
   }, []);
 
-  const columns = [
-    { key: "full_name", label: "Nom", sortable: true },
-    { key: "email", label: "Email", sortable: true },
-    { key: "company", label: "Société" },
-  ];
+  const rawColumns = [
+  { key: "full_name", label: "Nom", sortable: true },
+  { key: "email", label: "Email", sortable: true },
+  { key: "company", label: "Société" },
+  { key: "Nom", label: "Nom", sortable: true },
+  { key: "Mail", label: "Email", sortable: true },
+  { key: "company", label: "Société" }
+];
 
-  // 🔑 NOUVELLE FONCTION : Gère la mise à jour du filtre de catégorie
+const columns = rawColumns.filter(
+  (col, index, self) =>
+    index === self.findIndex((c) => c.label === col.label)
+);
+// Garde uniquement la première occurrence de chaque label
+
+  // 🔑 Gère la mise à jour du filtre de catégorie
   const handleFilterChange = (filterKey: string, value: string | null) => {
     if (filterKey === "categorie") {
       // Si la valeur est 'Toutes' ou null, on réinitialise le filtre à null (pour afficher tous les contacts)
@@ -120,10 +123,10 @@ const Contacts = () => {
     }
     // Les autres filtres (comme 'source') seraient gérés ici si nécessaire.
   };
-
-  // 🔑 NOUVEAU USEMEMO : Calcule la liste de contacts à afficher après filtrage
+  
+  // 🔑 Calcule la liste de contacts à afficher après filtrage
   const filteredContactManual = useMemo(() => {
-    // 1. Si aucun filtre n'est sélectionné (ou 'Toutes'), on retourne la liste brute
+    // 1. Si aucun filtre n'est sélectionné (ou 'Toutes'), on retourne la liste complète
     if (!selectedCategoryFilter) {
       return contactManual;
     }
@@ -132,23 +135,21 @@ const Contacts = () => {
     const category = categories.find(cat => cat.name === selectedCategoryFilter);
 
     if (!category) {
-      // Devrait être rare si les catégories sont bien chargées, mais retourne la liste vide en cas de non-concordance
       return []; 
     }
 
-    // 3. On filtre les contacts manuels en se basant sur **category_id** (qui est l'ID de la catégorie)
+    // 3. On filtre les contacts en se basant sur category_id
     return contactManual.filter(contact => contact.category_id === category.id);
   }, [contactManual, selectedCategoryFilter, categories]);
 
-
-  // 🔑 MODIFIÉ: S'assure que 'Toutes' est inclus dans les options de filtre
+  // 🔑 S'assure que 'Toutes' est inclus dans les options de filtre
   const filters = useMemo(() => [
-    { key: "source", label: "Source", options: ["Google Maps", "Phantombuster", "Manuel"] },
+    { key: "source", label: "Source", options: ["Google Map", "Phantombuster", "Manuel","societe"] },
     { key: "categorie", label: "Catégorie", options: ['Toutes', ...categories.map((c) => c.name)] },
   ], [categories]);
   
 
-  // --- GESTION DES CATÉGORIES (inchangé) ---
+  // --- GESTION DES CATÉGORIES ---
   const handleSaveCategory = async (name: string, color: string) => {
     try {
       if (editingCategory) {
@@ -183,6 +184,7 @@ const Contacts = () => {
   };
 
   const handleConfirmDelete = async () => {
+    
     if (!categoryToDelete?.id) return;
 
     if (categoryToDelete.contactCount > 0) {
@@ -206,7 +208,7 @@ const Contacts = () => {
     }
   };
 
-  // --- GESTION DES CONTACTS (inchangé, mais utilise les IDs) ---
+  // --- GESTION DES CONTACTS ---
 
   const handleAddContact = () => {
     setEditingContact(null);
@@ -221,7 +223,7 @@ const Contacts = () => {
         full_name: formData.full_name,
         email: formData.email,
         company: formData.company,
-        category_id: formData.category_id, // <-- Ceci est l'ID de la catégorie, c'est correct
+        category_id: formData.category_id,
         source: formData.source
       };
 
@@ -231,15 +233,15 @@ const Contacts = () => {
       let newCategoryId = formData.category_id;
 
       if (editingContact) {
-        // Mise à jour
-        const res = await api.patch(`/b2b_manual/${editingContact.id}`, apiData);
+        // Mise à jour (on utilise l'endpoint /b2b_manual par défaut pour l'édition ici)
+        const res = await api.patch(`/b2b_datasynch/${editingContact.id}`, apiData);
         contactId = editingContact.id;
         finalContact = { ...editingContact, ...apiData, id: contactId };
         setContactManual(prev => prev.map(c => c.id === contactId ? finalContact : c));
 
       } else {
         // Ajout
-        const res = await api.post('/b2b_manual', apiData);
+        const res = await api.post('/b2b_datasynch', apiData);
         contactId = res.data.id;
         finalContact = {
           id: contactId,
@@ -254,7 +256,7 @@ const Contacts = () => {
         setContactManual(prev => [finalContact, ...prev]);
       }
 
-      // LOGIQUE DE MISE À JOUR DU COMPTAGE DES CATÉGORIES (déjà fonctionnelle)
+      // LOGIQUE DE MISE À JOUR DU COMPTAGE DES CATÉGORIES
       setCategories(prevCategories => {
         return prevCategories.map(cat => {
           // 1. Décrémenter l'ancienne catégorie (si changement)
@@ -279,7 +281,6 @@ const Contacts = () => {
     }
   };
 
-  // 🔑 Fonction pour afficher la Popup de Modification (inchangé)
   const handleEditContact = (contact: any) => {
     if (!contact || !contact.id) {
       console.error("Opération annulée: Tentative de modification d'un contact sans ID valide.", contact);
@@ -308,10 +309,13 @@ const Contacts = () => {
 
     setIsDeletingContact(true);
     try {
-      await api.delete(`/b2b_manual/${contactToDelete.id}`);
+      // Attention: Ici la suppression se fait sur /b2b_manual, 
+      // Si c'est un contact de la table de societe, vous devez adapter cet appel API
+     
+      await api.delete(`/b2b_datasynch/${contactToDelete.id}`);
       setContactManual(prev => prev.filter(c => c.id !== contactToDelete.id));
 
-      // LOGIQUE DE DÉCRÉMENTATION DU COMPTAGE (déjà fonctionnelle)
+      // LOGIQUE DE DÉCRÉMENTATION DU COMPTAGE
       const deletedCategoryId = contactToDelete.category_id;
       if (deletedCategoryId) {
         setCategories(prevCategories => {
@@ -333,7 +337,7 @@ const Contacts = () => {
     }
   };
 
-  // --- Rendu du contenu de la Card Catégorie (inchangé) ---
+  // --- Rendu du contenu de la Card Catégorie ---
   const renderCategoryContent = () => {
     if (isCategoriesLoading) {
       return (
@@ -432,15 +436,15 @@ const Contacts = () => {
                   setLoading(true);
                   setIsCategoriesLoading(true);
                   
-                  await api.post("https://wfw.omega-connect.tech/webhook-test/c9118e3f-fc01-478e-9031-a5a7dee8c53e", {
+                  await api.post("https://n8n.projets-omega.net/webhook-test/c9118e3f-fc01-478e-9031-a5a7dee8c53e", {
                     action: "sync_trigger",
                     source: "manual_button",
                     timestamp: new Date().toISOString()
                   });
                   
-                  const manualContacts = await fetchContactsManual();
-                  await fetchCategories(manualContacts);
-                  fetchContacts();
+                  // 🔑 Synchronisation appelant la nouvelle fonction fusionnée
+                  const allContacts = await fetchAllContacts();
+                  await fetchCategories(allContacts);
 
                 } catch (error) {
                   console.error("Erreur lors de la synchronisation:", error);
@@ -489,7 +493,7 @@ const Contacts = () => {
             <DataTable
               title="Liste des contacts"
               columns={columns}
-              data={filteredContactManual} // ✅ Affiche maintenant les données filtrées
+              data={filteredContactManual} // ✅ Affiche les données fusionnées et filtrées
               filters={filters}
               searchPlaceholder="Rechercher par nom, email..."
               onEdit={handleEditContact}
@@ -500,49 +504,81 @@ const Contacts = () => {
             />
           </div>
         </div>
-                {/* SECTION: Statistiques des sources */}
-<Card>
-  <CardHeader>
-    <CardTitle>Statistiques par Source</CardTitle>
-  </CardHeader>
-  <CardContent>
-    {(loading || isCategoriesLoading) ? (
-        <div className="flex items-center justify-center min-h-[100px]">
-             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-    ) : (
-      (() => {
-        const phantombusterCount = contactManual.filter(
-          (c) => c.source?.toLowerCase() === "phantombuster"
-        ).length;
+        
+        {/* SECTION: Statistiques des sources */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Statistiques par Source</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(loading || isCategoriesLoading) ? (
+                <div className="flex items-center justify-center min-h-[100px]">
+                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+            ) : (
+              (() => {
+                const phantombusterCount = contactManual.filter(
+                  (c) => c.source?.toLowerCase() === "phantombuster"
+                ).length;
 
-        const manuelCount = contactManual.filter(
-          (c) =>
-            c.source?.toLowerCase() === "ajout manuel" ||
-            c.source?.toLowerCase() === "manuel"
-        ).length;
+                const manuelCount = contactManual.filter(
+                  (c) =>
+                    c.source?.toLowerCase() === "ajout manuel" ||
+                    c.source?.toLowerCase() === "manuel"
+                    
+                ).length;
+                 const societeCount = contactManual.filter(
+                  (c) =>
+                    c.source?.toLowerCase() === "societe" 
+                    
+                ).length;
+                 const googleCount = contactManual.filter(
+                  (c) =>
+                    c.source?.toLowerCase() === "google map" 
+                    
+                ).length;
 
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="text-center p-4 border border-border rounded-lg">
-              <h3 className="font-semibold text-lg">Phantombuster</h3>
-              <p className="text-2xl font-bold text-primary mt-2">{phantombusterCount}</p>
-              <p className="text-sm text-muted-foreground">contacts</p>
-              <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-            </div>
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">Phantombuster</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{phantombusterCount}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
 
-            <div className="text-center p-4 border border-border rounded-lg">
-              <h3 className="font-semibold text-lg">Ajout Manuel</h3>
-              <p className="text-2xl font-bold text-primary mt-2">{manuelCount}</p>
-              <p className="text-sm text-muted-foreground">contacts</p>
-              <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-            </div>
-          </div>
-        );
-      })()
-    )}
-  </CardContent>
-</Card>
+                    <div className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">Ajout Manuel</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{manuelCount}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
+                    <div className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">Societé</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{societeCount}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
+
+                    <div className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">Google Map</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{googleCount}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
+                    
+                    <div className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">Total</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{societeCount+manuelCount+phantombusterCount+googleCount}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </CardContent>
+        </Card>
 
         {/* Popups */}
         <CategoryPopup

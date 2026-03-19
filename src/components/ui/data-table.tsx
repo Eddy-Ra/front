@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { api } from '@/api/api';
 
 // Largeurs fixes pour les colonnes (inchangé)
 const COLUMN_WIDTHS: Record<string, string> = {
@@ -65,7 +66,7 @@ export function DataTable({
     onEditProp(item); 
   };
   
-  const handleDeleteClick = (item: any) => {
+  const handleDeleteClick = async (item: any) => {
     onDelete(item);
   };
   
