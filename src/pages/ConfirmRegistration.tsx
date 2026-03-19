@@ -21,7 +21,7 @@ const ConfirmRegistration = () => {
         const confirmAndCreateAccount = async () => {
             
             if (!name || !email || !password || !ts) {
-                setStatus('error');
+                setStatus('error ');
                 setIsLoading(false);
                 return;
             }
