@@ -24,6 +24,7 @@ const ConfirmRegistration = () => {
                 setStatus('error');
                 setIsLoading(false);
                 return;
+                
             }
 
             // 1. Vérifier l'expiration (2 minutes)
