@@ -436,7 +436,7 @@ const columns = rawColumns.filter(
                   setLoading(true);
                   setIsCategoriesLoading(true);
                   
-                  await api.post("https://n8n.projets-omega.net/webhook-test/c9118e3f-fc01-478e-9031-a5a7dee8c53e", {
+                  await api.post("https://n8n.projets-omega.net/webhook/c9118e3f-fc01-478e-9031-a5a7dee8c53e", {
                     action: "sync_trigger",
                     source: "manual_button",
                     timestamp: new Date().toISOString()
