@@ -8,12 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import img from '../../public/assets/img/johndoe.jpg';
 import { api } from '@/api/api';
 import { toast } from '@/hooks/use-toast';
 
 const Parametres = () => {
-  // SECTION: Gestion des utilisateurs
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = currentUser.role === 'Admin';
+
   const [utilisateurs, setUtilisateurs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filterRole, setFilterRole] = useState<string>('Tous');
@@ -25,7 +26,7 @@ const Parametres = () => {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/users');
+      const res = await api.get('/user');
       setUtilisateurs(res.data);
     } catch (err) {
       console.error("Erreur chargement utilisateurs", err);
@@ -39,7 +40,6 @@ const Parametres = () => {
     }
   };
 
-  // SECTION: Paramètres généraux
   const [parametresGeneraux, setParametresGeneraux] = useState({
     emailDefaut: 'crm@entreprise.com',
     nomExpediteur: 'CRM Pro',
@@ -60,8 +60,18 @@ const Parametres = () => {
   const [showAddUser, setShowAddUser] = useState(false);
 
   const handleAddUser = async () => {
+    // Vérification côté frontend
+    if (nouvelUtilisateur.role === 'Admin' && !isAdmin) {
+      toast({
+        title: "Non autorisé",
+        description: "Seul un Admin peut créer un autre Admin.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      await api.post('/users', {
+      await api.post('/user', {
         ...nouvelUtilisateur,
         created_at: new Date().toISOString(),
         is_active: true
@@ -76,14 +86,13 @@ const Parametres = () => {
   };
 
   const handleEditUser = (user: any) => {
-    // A implémenter si besoin d'édition complète
     console.log('Modifier utilisateur:', user);
   };
 
   const handleDeleteUser = async (user: any) => {
     if (!confirm("Voulez-vous vraiment supprimer cet utilisateur ?")) return;
     try {
-      await api.delete(`/users/${user.id}`);
+      await api.delete(`/user/${user.id}`);
       toast({ title: "Succès", description: "Utilisateur supprimé" });
       fetchUsers();
     } catch (err) {
@@ -93,7 +102,7 @@ const Parametres = () => {
 
   const toggleUserStatus = async (user: any) => {
     try {
-      await api.patch(`/users/${user.id}`, { is_active: !user.is_active });
+      await api.patch(`/user/${user.id}`, { is_active: !user.is_active });
       toast({ title: "Succès", description: `Statut mis à jour` });
       fetchUsers();
     } catch (err) {
@@ -117,14 +126,12 @@ const Parametres = () => {
   };
 
   const getStatusBadge = (isActive: any) => {
-    // Gérer les différents formats possibles (booléen, 0/1, string)
     const active = isActive === true || isActive === 1 || isActive === '1' || isActive === 'true';
     return active ?
       <Badge className="bg-green-500 hover:bg-green-600 text-white cursor-pointer select-none">Actif</Badge> :
       <Badge variant="destructive" className="cursor-pointer select-none">Inactif</Badge>;
   };
 
-  // Filtrer les utilisateurs
   const filteredUsers = utilisateurs.filter(user => filterRole === 'Tous' || user.role === filterRole);
 
   return (
@@ -139,18 +146,15 @@ const Parametres = () => {
           {/* SECTION: Onglet Gestion des utilisateurs */}
           <TabsContent value="utilisateurs" className="mt-6">
             <div className="space-y-6">
-              {/* Actions principales */}
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Gestion des Utilisateurs</h3>
-                <div className="flex gap-2">
-                  <Button onClick={() => setShowAddUser(true)} className="gap-2 border-1">
-                    <Plus className="h-4 w-4" />
-                    Ajouter un utilisateur
-                  </Button>
-                </div>
+                <Button onClick={() => setShowAddUser(true)} className="gap-2 border-1">
+                  <Plus className="h-4 w-4" />
+                  Ajouter un utilisateur
+                </Button>
               </div>
 
-              {/* Filtres de Rôle */}
+              {/* Filtres */}
               <div className="flex gap-2 mb-4">
                 {['Tous', 'Admin', 'Rédacteur'].map(role => (
                   <Button
@@ -195,17 +199,18 @@ const Parametres = () => {
                           <div onClick={() => toggleUserStatus(user)} title="Cliquez pour changer le statut">
                             {getStatusBadge(user.is_active)}
                           </div>
-
                           <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditUser(user)}
-                              className="h-8 w-8 p-0 border"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            {user.role !== 'Admin' && (
+                            {isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditUser(user)}
+                                className="h-8 w-8 p-0 border"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isAdmin && user.role !== 'Admin' && (
                               <Button
                                 variant="destructive"
                                 size="sm"
@@ -245,7 +250,6 @@ const Parametres = () => {
                         <li>• Validation et envoi des mails</li>
                       </ul>
                     </div>
-
                     <div className="p-4 border border-border rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary">Rédacteur</Badge>
@@ -268,7 +272,6 @@ const Parametres = () => {
           <TabsContent value="parametres" className="mt-6">
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Configuration Email */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -283,27 +286,19 @@ const Parametres = () => {
                         id="email-defaut"
                         type="email"
                         value={parametresGeneraux.emailDefaut}
-                        onChange={(e) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          emailDefaut: e.target.value
-                        }))}
+                        onChange={(e) => setParametresGeneraux(prev => ({ ...prev, emailDefaut: e.target.value }))}
                         className="mt-1"
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="nom-expediteur">Nom de l'expéditeur</Label>
                       <Input
                         id="nom-expediteur"
                         value={parametresGeneraux.nomExpediteur}
-                        onChange={(e) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          nomExpediteur: e.target.value
-                        }))}
+                        onChange={(e) => setParametresGeneraux(prev => ({ ...prev, nomExpediteur: e.target.value }))}
                         className="mt-1"
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="frequence">Fréquence d'envoi (mails par lot)</Label>
                       <Input
@@ -312,14 +307,10 @@ const Parametres = () => {
                         min="10"
                         max="100"
                         value={parametresGeneraux.frequenceEnvoi}
-                        onChange={(e) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          frequenceEnvoi: Number(e.target.value)
-                        }))}
+                        onChange={(e) => setParametresGeneraux(prev => ({ ...prev, frequenceEnvoi: Number(e.target.value) }))}
                         className="mt-1"
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="delai">Délai entre les lots (minutes)</Label>
                       <Input
@@ -328,17 +319,13 @@ const Parametres = () => {
                         min="1"
                         max="60"
                         value={parametresGeneraux.delaiEntreLots}
-                        onChange={(e) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          delaiEntreLots: Number(e.target.value)
-                        }))}
+                        onChange={(e) => setParametresGeneraux(prev => ({ ...prev, delaiEntreLots: Number(e.target.value) }))}
                         className="mt-1"
                       />
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Paramètres Système */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -350,54 +337,36 @@ const Parametres = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Auto-validation des mails IA</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Valider automatiquement les mails générés par IA
-                        </p>
+                        <p className="text-sm text-muted-foreground">Valider automatiquement les mails générés par IA</p>
                       </div>
                       <Switch
                         checked={parametresGeneraux.autoValidation}
-                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          autoValidation: checked
-                        }))}
+                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({ ...prev, autoValidation: checked }))}
                       />
                     </div>
-
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Notifications par email</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Recevoir des notifications pour les réponses
-                        </p>
+                        <p className="text-sm text-muted-foreground">Recevoir des notifications pour les réponses</p>
                       </div>
                       <Switch
                         checked={parametresGeneraux.notificationsEmail}
-                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          notificationsEmail: checked
-                        }))}
+                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({ ...prev, notificationsEmail: checked }))}
                       />
                     </div>
-
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Sauvegarde automatique</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Sauvegarder automatiquement les modifications
-                        </p>
+                        <p className="text-sm text-muted-foreground">Sauvegarder automatiquement les modifications</p>
                       </div>
                       <Switch
                         checked={parametresGeneraux.sauvegardeAuto}
-                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({
-                          ...prev,
-                          sauvegardeAuto: checked
-                        }))}
+                        onCheckedChange={(checked) => setParametresGeneraux(prev => ({ ...prev, sauvegardeAuto: checked }))}
                       />
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Intégrations */}
                 <Card className="lg:col-span-2">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -407,16 +376,13 @@ const Parametres = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <Label htmlFor="api-n8n">Clé API n8n (prévu pour automatisation)</Label>
+                      <Label htmlFor="api-n8n">Clé API n8n</Label>
                       <div className="flex gap-2 mt-1">
                         <Input
                           id="api-n8n"
                           type="password"
                           value={parametresGeneraux.apiKeyN8n}
-                          onChange={(e) => setParametresGeneraux(prev => ({
-                            ...prev,
-                            apiKeyN8n: e.target.value
-                          }))}
+                          onChange={(e) => setParametresGeneraux(prev => ({ ...prev, apiKeyN8n: e.target.value }))}
                           placeholder="Entrez votre clé API n8n"
                         />
                         <Button variant="outline" className='border-[#8675E1] border-2 text-[#8675E1]'>Tester</Button>
@@ -425,7 +391,6 @@ const Parametres = () => {
                         Cette intégration permettra l'automatisation des envois via n8n
                       </p>
                     </div>
-
                     <div className="bg-muted p-4 rounded-lg">
                       <h4 className="font-medium mb-2">Statut des intégrations</h4>
                       <div className="space-y-2 text-sm">
@@ -457,7 +422,7 @@ const Parametres = () => {
           </TabsContent>
         </Tabs>
 
-        {/* SECTION: Modal d'ajout d'utilisateur */}
+        {/* Modal Ajouter Utilisateur */}
         {showAddUser && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <Card className="w-full max-w-md">
@@ -470,44 +435,37 @@ const Parametres = () => {
                   <Input
                     id="new-nom"
                     value={nouvelUtilisateur.nom}
-                    onChange={(e) => setNouvelUtilisateur(prev => ({
-                      ...prev,
-                      nom: e.target.value
-                    }))}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, nom: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
-
                 <div>
                   <Label htmlFor="new-email">Email</Label>
                   <Input
                     id="new-email"
                     type="email"
                     value={nouvelUtilisateur.email}
-                    onChange={(e) => setNouvelUtilisateur(prev => ({
-                      ...prev,
-                      email: e.target.value
-                    }))}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, email: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
-
                 <div>
                   <Label htmlFor="new-role">Rôle</Label>
                   <select
                     id="new-role"
                     value={nouvelUtilisateur.role}
-                    onChange={(e) => setNouvelUtilisateur(prev => ({
-                      ...prev,
-                      role: e.target.value
-                    }))}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, role: e.target.value }))}
                     className="w-full mt-1 px-3 py-2 border border-border rounded-md"
                   >
                     <option value="Rédacteur">Rédacteur</option>
-                    <option value="Admin">Admin</option>
+                    {isAdmin && <option value="Admin">Admin</option>} {/* ← Visible seulement pour Admin */}
                   </select>
+                  {!isAdmin && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Seul un Admin peut créer un autre Admin.
+                    </p>
+                  )}
                 </div>
-
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={() => setShowAddUser(false)}>
                     Annuler

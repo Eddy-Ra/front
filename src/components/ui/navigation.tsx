@@ -1,69 +1,468 @@
-import React from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  Mail,
-  Send,
-  Reply,
-  RefreshCw,
-  Settings,
-  LogOut,
-  Bell,
-  Brain,
-  Sparkles
+  LayoutDashboard, Users, Mail, Send, Reply,
+  RefreshCw, Settings, LogOut, Bell, Brain,
+  X, Check, AlertTriangle, CheckCircle, Info, XCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import img from '../../../public/assets/img/johndoe.jpg';
+import { api } from '@/api/api';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const navigationItems = [
-  { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Gestion des contacts', href: '/contacts', icon: Users },
-  { name: 'Mails à envoyer', href: '/mails-a-envoyer', icon: Mail },
-  { name: 'Envoi en masse', href: '/envoi-masse', icon: Send },
-  { name: 'Mails de réponse', href: '/mails-reponses', icon: Reply },
-  { name: 'Mails de relance', href: '/mails-relance', icon: RefreshCw },
-  { name: 'Paramètres', href: '/parametres', icon: Settings },
-];
-
-interface SidebarProps {
-  className?: string;
+// ============================================================
+// TYPES
+// ============================================================
+interface Notification {
+  id: number;
+  type: 'success' | 'warning' | 'error' | 'info';
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
 }
 
-import { api } from '@/api/api';
+// ============================================================
+// PERSISTANCE LOCALSTORAGE
+// ============================================================
+const loadCounts = () => {
+  try {
+    const saved = localStorage.getItem('notif_counts');
+    return saved ? JSON.parse(saved) : { attente: -1, reponses: -1, contacts: -1 };
+  } catch {
+    return { attente: -1, reponses: -1, contacts: -1 };
+  }
+};
+
+const saveCounts = (counts: { attente: number; reponses: number; contacts: number }) => {
+  localStorage.setItem('notif_counts', JSON.stringify(counts));
+};
+
+// ============================================================
+// VARIABLES GLOBALES
+// ============================================================
+let globalNotifications: Notification[] = [];
+let globalLastCounts = loadCounts();
+let isRunning = false;
+let intervalId: NodeJS.Timeout | null = null;
+let notifId = 1;
+
+// ============================================================
+// FETCH AVEC PAGINATION COMPLÈTE
+// ============================================================
+const extractArray = (data: any): any[] => {
+  if (Array.isArray(data))          return data;
+  if (Array.isArray(data?.data))    return data.data;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.items))   return data.items;
+  if (Array.isArray(data?.records)) return data.records;
+  return [];
+};
+
+const fetchAllPages = async (endpoint: string): Promise<any[]> => {
+  const limit = 1000;
+  let offset = 0;
+  let allData: any[] = [];
+
+  while (true) {
+    const res = await api.get(endpoint, { params: { limit, offset } });
+    const batch = extractArray(res.data);
+    allData = [...allData, ...batch];
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+
+  return allData;
+};
+
+// ============================================================
+// HOOK NOTIFICATIONS
+// ============================================================
+const useNotifications = () => {
+  const [notifications, setNotifications] = useState<Notification[]>(globalNotifications);
+
+  const checkSystemAlerts = useCallback(async () => {
+    if (isRunning) return;
+    isRunning = true;
+
+    try {
+      const [attenteRes, repRes, contactsRes] = await Promise.allSettled([
+        fetchAllPages('/realtimestatus'),
+        fetchAllPages('/b2b_mailsreponses'),
+        fetchAllPages('/b2b_datasynch'),
+      ]);
+
+      const attenteAll = attenteRes.status === 'fulfilled' ? attenteRes.value : [];
+      console.log('🔍 Statuts trouvés:', [...new Set(attenteAll.map((i: any) => i.statut))]);
+
+      const attenteCount = attenteAll.filter((item: any) => item.statut === 'En cours').length;
+      const reponsesCount = repRes.status === 'fulfilled' ? repRes.value.length : 0;
+      const contactsCount = contactsRes.status === 'fulfilled' ? contactsRes.value.length : 0;
+
+      console.log('📊 Counts:', { attenteCount, reponsesCount, contactsCount });
+      console.log('📊 lastCounts:', { ...globalLastCounts });
+
+      const time = new Date().toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+
+      const newNotifs: Notification[] = [];
+
+      if (globalLastCounts.attente === -1) {
+        // ✅ Premier chargement
+        if (attenteCount > 0) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'warning',
+            title: 'Mails en attente',
+            message: `${attenteCount} mail(s) en cours de traitement.`
+          });
+        }
+        if (reponsesCount > 0) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'success',
+            title: 'Réponses reçues',
+            message: `${reponsesCount} réponse(s) à consulter.`
+          });
+        }
+        if (contactsCount > 0) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'info',
+            title: 'Système opérationnel',
+            message: 'Toutes les sources de données sont synchronisées.'
+          });
+        } else {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'error',
+            title: 'Base de contacts vide',
+            message: 'Aucun contact trouvé dans la base de données.'
+          });
+        }
+      } else {
+        // ✅ Polls suivants — seulement les nouveautés
+        if (attenteCount > globalLastCounts.attente) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'warning',
+            title: 'Nouveaux mails en attente',
+            message: `+${attenteCount - globalLastCounts.attente} mail(s) en cours de traitement.`
+          });
+        }
+        if (reponsesCount > globalLastCounts.reponses) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'success',
+            title: 'Nouvelles réponses reçues',
+            message: `+${reponsesCount - globalLastCounts.reponses} nouvelle(s) réponse(s) reçue(s).`
+          });
+        }
+        if (contactsCount === 0 && globalLastCounts.contacts > 0) {
+          newNotifs.push({
+            id: notifId++, read: false, time,
+            type: 'error',
+            title: 'Base de contacts vide',
+            message: 'Tous les contacts ont été supprimés.'
+          });
+        }
+      }
+
+      globalLastCounts = { attente: attenteCount, reponses: reponsesCount, contacts: contactsCount };
+      saveCounts(globalLastCounts);
+
+      if (newNotifs.length > 0) {
+        globalNotifications = [...newNotifs, ...globalNotifications];
+        setNotifications([...globalNotifications]);
+      }
+
+      console.log('🔔 Nouvelles notifs:', newNotifs.length, newNotifs.map(n => n.title));
+
+    } catch (err) {
+      console.error('❌ Erreur checkSystemAlerts:', err);
+      const errNotif: Notification = {
+        id: notifId++, read: false,
+        type: 'error',
+        title: 'Erreur de connexion',
+        message: 'Impossible de contacter le serveur.',
+        time: new Date().toLocaleString('fr-FR')
+      };
+      globalNotifications = [errNotif, ...globalNotifications];
+      setNotifications([...globalNotifications]);
+    } finally {
+      isRunning = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (intervalId) return;
+    checkSystemAlerts();
+    intervalId = setInterval(checkSystemAlerts, 60 * 1000);
+  }, [checkSystemAlerts]);
+
+  const markAllRead = () => {
+    globalNotifications = globalNotifications.map(n => ({ ...n, read: true }));
+    setNotifications([...globalNotifications]);
+  };
+
+  const markRead = (id: number) => {
+    globalNotifications = globalNotifications.map(n => n.id === id ? { ...n, read: true } : n);
+    setNotifications([...globalNotifications]);
+  };
+
+  const deleteNotif = (id: number) => {
+    globalNotifications = globalNotifications.filter(n => n.id !== id);
+    setNotifications([...globalNotifications]);
+  };
+
+  const deleteAll = () => {
+    globalNotifications = [];
+    globalLastCounts = { attente: -1, reponses: -1, contacts: -1 };
+    localStorage.removeItem('notif_counts');
+    setNotifications([]);
+  };
+
+  return { notifications, markAllRead, markRead, deleteNotif, deleteAll, checkSystemAlerts };
+};
+
+// ============================================================
+// ICONES ET COULEURS
+// ============================================================
+const iconMap = {
+  success: <CheckCircle className="h-4 w-4 text-green-400" />,
+  warning: <AlertTriangle className="h-4 w-4 text-yellow-400" />,
+  error:   <XCircle className="h-4 w-4 text-red-400" />,
+  info:    <Info className="h-4 w-4 text-blue-400" />
+};
+
+const bgMap = {
+  success: 'bg-green-500/10',
+  warning: 'bg-yellow-500/10',
+  error:   'bg-red-500/10',
+  info:    'bg-blue-500/10'
+};
+
+// ✅ Redirection selon le type et le titre de la notif
+const getRedirectPath = (notif: Notification): string => {
+  if (notif.type === 'success') return '/mails-reponses';
+  if (notif.type === 'warning') return '/envoi-masse';
+  if (notif.type === 'error')   return '/contacts';
+  return '/dashboard';
+};
+
+// ============================================================
+// COMPOSANT NOTIFICATION PANEL
+// ============================================================
+interface NotificationPanelProps {
+  notifications: Notification[];
+  onMarkAllRead: () => void;
+  onMarkRead: (id: number) => void;
+  onDelete: (id: number) => void;
+  onDeleteAll: () => void;
+  onRefresh: () => void;
+}
+
+const NotificationPanel = ({
+  notifications, onMarkAllRead, onMarkRead,
+  onDelete, onDeleteAll, onRefresh
+}: NotificationPanelProps) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate(); // ✅ navigate ici car on est dans le Router
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ✅ Clic notif → marquer lu + fermer panel + rediriger
+  const handleNotifClick = (notif: Notification) => {
+    onMarkRead(notif.id);
+    setOpen(false);
+    navigate(getRedirectPath(notif));
+  };
+
+  return (
+    <div ref={ref} className="relative">
+
+      {/* Bouton */}
+      <Button
+        variant="glass"
+        size="sm"
+        className="gap-2 hover-glow relative"
+        onClick={() => setOpen(!open)}
+      >
+        <Bell className={cn("h-4 w-4", unreadCount > 0 && "animate-bounce")} />
+        Notifications
+        {unreadCount > 0 && (
+          <span className="ml-1 px-2 py-0.5 text-xs bg-gradient-primary text-primary-foreground rounded-full animate-pulse">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </Button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute right-0 top-12 w-96 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-white text-sm">Alertes système</h3>
+              {unreadCount > 0 && (
+                <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                  {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={onMarkAllRead}
+                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
+                >
+                  <Check className="h-3 w-3" />
+                  Tout lire
+                </button>
+              )}
+              <button
+                onClick={() => setOpen(false)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Liste */}
+          <div className="max-h-96 overflow-y-auto divide-y divide-white/5">
+            {notifications.length === 0 ? (
+              <div className="py-10 text-center space-y-2">
+                <CheckCircle className="h-8 w-8 text-green-400 mx-auto opacity-50" />
+                <p className="text-zinc-500 text-sm">Aucune alerte système</p>
+              </div>
+            ) : (
+              notifications.map(notif => (
+                <div
+                  key={notif.id}
+                  onClick={() => handleNotifClick(notif)} // ✅ clic → redirect
+                  className={cn(
+                    "flex items-start gap-3 px-4 py-3 transition-colors group cursor-pointer",
+                    !notif.read
+                      ? 'bg-purple-500/5 hover:bg-purple-500/10'
+                      : 'hover:bg-white/5'
+                  )}
+                >
+                  <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 ${bgMap[notif.type]}`}>
+                    {iconMap[notif.type]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-sm font-medium",
+                      !notif.read ? 'text-white' : 'text-zinc-300'
+                    )}>
+                      {notif.title}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                      {notif.message}
+                    </p>
+                    <p className="text-xs text-zinc-600 mt-1">{notif.time}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {!notif.read && (
+                      <div className="h-2 w-2 rounded-full bg-purple-400" />
+                    )}
+                    {/* ✅ stopPropagation pour ne pas déclencher handleNotifClick */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDelete(notif.id); }}
+                      className="text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="px-4 py-3 border-t border-white/10 flex justify-between items-center">
+              <span className="text-xs text-zinc-600">
+                {notifications.length} alerte{notifications.length > 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={onDeleteAll}
+                className="text-xs text-red-400 hover:text-red-300 transition-colors"
+              >
+                Tout effacer
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// NAVIGATION ITEMS
+// ============================================================
+const navigationItems = [
+  { name: 'Tableau de bord',      href: '/dashboard',       icon: LayoutDashboard },
+  { name: 'Gestion des contacts', href: '/contacts',         icon: Users },
+  { name: 'Mails à envoyer',      href: '/mails-a-envoyer', icon: Mail },
+  { name: 'Envoi en masse',       href: '/envoi-masse',      icon: Send },
+  { name: 'Mails de réponse',     href: '/mails-reponses',  icon: Reply },
+  { name: 'Mails de relance',     href: '/mails-relance',   icon: RefreshCw },
+  { name: 'Paramètres',           href: '/parametres',       icon: Settings },
+];
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+interface SidebarProps { className?: string; }
 
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
-  // Récupérer les infos utilisateur
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const userName = user?.name || 'Utilisateur';
+  const userStr   = localStorage.getItem('user');
+  const user      = userStr ? JSON.parse(userStr) : null;
+  const userName  = user?.name  || 'Utilisateur';
   const userEmail = user?.email || 'user@crm.com';
 
   const handleLogout = async () => {
-    if (user && user.id) {
+    if (user?.id) {
       try {
-        await api.patch(`/users/${user.id}`, { is_active: false });
+        await api.patch(`/user/${user.id}`, { is_active: false });
       } catch (e) {
         console.error("Erreur déconnexion statut", e);
       }
     }
     localStorage.removeItem('user');
+    localStorage.removeItem('notif_counts');
+    globalNotifications = [];
+    globalLastCounts = { attente: -1, reponses: -1, contacts: -1 };
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
     navigate('/login');
   };
 
@@ -72,7 +471,6 @@ export function Sidebar({ className }: SidebarProps) {
       "fixed left-0 top-0 z-40 h-screen w-sidebar glass border-r border-border/50 backdrop-blur-xl animate-slide-up",
       className
     )}>
-      {/* Logo */}
       <div className="flex h-header items-center justify-center border-b border-border/50 px-2 bg-gradient-primary/5">
         <h1 className="flex items-center gap-2 text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
           <Brain className="text-purple-400 w-6 h-6" />
@@ -80,8 +478,6 @@ export function Sidebar({ className }: SidebarProps) {
         </h1>
       </div>
 
-
-      {/* Navigation */}
       <nav className="flex-1 space-y-2 p-4">
         {navigationItems.map((item, index) => {
           const isActive = location.pathname === item.href;
@@ -90,7 +486,7 @@ export function Sidebar({ className }: SidebarProps) {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ease-in-out group hover-lift animate-fade-in font-poppins",
+                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 group hover-lift animate-fade-in font-poppins",
                 isActive
                   ? "bg-gradient-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105"
                   : "text-muted-foreground hover:bg-gradient-glass hover:text-foreground hover:shadow-md backdrop-blur-sm"
@@ -98,42 +494,29 @@ export function Sidebar({ className }: SidebarProps) {
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <item.icon className={cn(
-                "h-5 w-5 transition-all duration-300 ease-in-out",
-                isActive
-                  ? "text-primary-foreground"
-                  : "text-muted-foreground group-hover:text-primary"
+                "h-5 w-5 transition-all duration-300",
+                isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
               )} />
-              <span className="transition-colors duration-300 ease-in-out">
-                {item.name}
-              </span>
+              <span>{item.name}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* User section */}
-      {/* User section */}
       <div className="border-t border-border/50 p-4 bg-gradient-glass/30">
         <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-gradient-glass backdrop-blur-sm border border-white/10 hover-lift">
           <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg animate-glow overflow-hidden">
-            <img
-              src={img}
-              alt="Avatar utilisateur"
-              className="h-full w-full object-cover rounded-full"
-            />
+            <img src={img} alt="Avatar" className="h-full w-full object-cover rounded-full" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold font-poppins">{userName}</p>
             <p className="text-xs text-muted-foreground">{userEmail}</p>
           </div>
         </div>
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start gap-2 mb-2 border-[#8675E1] border-2 text-[#8675E1]"
-            >
+            <Button variant="outline" size="sm" className="w-full justify-start gap-2 mb-2 border-[#8675E1] border-2 text-[#8675E1]">
               <LogOut className="h-4 w-4" />
               Déconnexion
             </Button>
@@ -141,9 +524,7 @@ export function Sidebar({ className }: SidebarProps) {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Déconnexion</AlertDialogTitle>
-              <AlertDialogDescription>
-                Êtes-vous sûr de vouloir vous déconnecter ?
-              </AlertDialogDescription>
+              <AlertDialogDescription>Êtes-vous sûr de vouloir vous déconnecter ?</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Non</AlertDialogCancel>
@@ -151,35 +532,48 @@ export function Sidebar({ className }: SidebarProps) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {/* <div className="flex justify-center">
-          <ThemeToggle />
-        </div> */}
       </div>
-
     </aside>
   );
 }
 
+// ============================================================
+// HEADER
+// ============================================================
 interface HeaderProps {
   title: string;
   className?: string;
+  notifications: Notification[];
+  onMarkAllRead: () => void;
+  onMarkRead: (id: number) => void;
+  onDelete: (id: number) => void;
+  onDeleteAll: () => void;
+  onRefresh: () => void;
 }
 
-export function Header({ title, className }: HeaderProps) {
+export function Header({
+  title, className,
+  notifications, onMarkAllRead, onMarkRead,
+  onDelete, onDeleteAll, onRefresh
+}: HeaderProps) {
   return (
     <header className={cn(
       "fixed top-0 left-sidebar right-0 z-30 h-header glass border-b border-border/50 backdrop-blur-xl animate-slide-up",
       className
     )}>
       <div className="flex h-full items-center justify-between px-6">
-        <h2 className="text-xl font-bold text-muted-foreground font-poppins animate-fade-in">{title}</h2>
-
+        <h2 className="text-xl font-bold text-muted-foreground font-poppins animate-fade-in">
+          {title}
+        </h2>
         <div className="flex items-center gap-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-          <Button variant="glass" size="sm" className="gap-2 hover-glow">
-            <Bell className="h-4 w-4" />
-            Notifications
-            <span className="ml-1 px-2 py-0.5 text-xs bg-gradient-primary text-primary-foreground rounded-full animate-pulse">3</span>
-          </Button>
+          <NotificationPanel
+            notifications={notifications}
+            onMarkAllRead={onMarkAllRead}
+            onMarkRead={onMarkRead}
+            onDelete={onDelete}
+            onDeleteAll={onDeleteAll}
+            onRefresh={onRefresh}
+          />
           <ThemeToggle />
         </div>
       </div>
@@ -187,16 +581,36 @@ export function Header({ title, className }: HeaderProps) {
   );
 }
 
+// ============================================================
+// LAYOUT
+// ============================================================
 interface LayoutProps {
   children: React.ReactNode;
   title: string;
 }
 
 export function Layout({ children, title }: LayoutProps) {
+  const {
+    notifications,
+    markAllRead,
+    markRead,
+    deleteNotif,
+    deleteAll,
+    checkSystemAlerts
+  } = useNotifications();
+
   return (
     <div className="min-h-screen bg-gradient-background">
       <Sidebar />
-      <Header title={title} />
+      <Header
+        title={title}
+        notifications={notifications}
+        onMarkAllRead={markAllRead}
+        onMarkRead={markRead}
+        onDelete={deleteNotif}
+        onDeleteAll={deleteAll}
+        onRefresh={checkSystemAlerts}
+      />
       <main className="ml-sidebar pt-header">
         <div className="p-6 animate-fade-in">
           {children}

@@ -26,6 +26,7 @@ const ConfirmRegistration = () => {
                 return;
                 
             }
+            
 
             // 1. Vérifier l'expiration (2 minutes)
             const now = Date.now();
@@ -40,7 +41,7 @@ const ConfirmRegistration = () => {
 
             try {
                 // 2. Créer le compte
-                await api.post('/users', {
+                await api.post('/user', {
                     name:name,
                     email:email,
                     password:password,
@@ -136,6 +137,7 @@ const ConfirmRegistration = () => {
                                 <div className="space-y-2">
                                     <h3 className="text-2xl font-bold text-white">Erreur</h3>
                                     <p className="text-zinc-400">
+                                        
                                         Une erreur est survenue lors de la confirmation de votre compte.
                                    
                                     </p>
@@ -149,6 +151,7 @@ const ConfirmRegistration = () => {
                                 </Button>
                             </div>
                         )}
+                        
                     </CardContent>
                 </Card>
             </div>

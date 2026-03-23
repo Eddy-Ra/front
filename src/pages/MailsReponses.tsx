@@ -8,9 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/api/api';
 import { toast } from '@/hooks/use-toast';
 
+const ITEMS_PER_PAGE = 2;
 
-
-const ITEMS_PER_PAGE = 2; // nombre d'éléments par page 
 interface Reponse {
   id: number;
   expediteur: string;
@@ -23,26 +22,41 @@ interface Reponse {
   categorie: string;
 }
 
+// ✅ Normalisation centralisée des statuts (évite les doublons partout)
+const normalizeStatut = (statut: string): string => {
+  if (!statut) return 'Non intéressé';
+  const s = statut.trim().toLowerCase();
+  if (s === 'intéressé' || s === 'interessee' || s === 'intéressés') return 'Intéressé';
+  if (s === 'non intéressé' || s === 'non intéressés') return 'Non intéressé';
+  if (s === 'intéressé plus tard' || s === 'plus tard') return 'Intéressé plus tard';
+  if (s === 'aucun rapport') return 'Aucun rapport';
+  return statut;
+};
+
 const MailsReponses = () => {
   const [reponses, setReponses] = useState<Reponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReponse, setSelectedReponse] = useState<Reponse | null>(null);
+  const [activeTab, setActiveTab] = useState('toutes');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchReponses = async () => {
     try {
       const res = await api.get("/b2b_mailsreponses");
 
-      const mappedData = res.data
+      const mappedData: Reponse[] = res.data
         .filter((item: any) => item.expediteur !== null)
-        .filter((item: any) => item.statut !== 'Aucun rapport')// Ignore les lignes vides et Aucun rapport (ex: id=2)
+        .filter((item: any) => normalizeStatut(item.statut) !== 'Aucun rapport')
         .map((item: any) => ({
           id: item.id,
           expediteur: item.expediteur ?? 'Inconnu',
           sujet: item.sujet ?? 'Sans sujet',
           contenu: item.contenu ?? '',
           mailOriginal: item.mailOriginal ?? '',
-          statut: item.statut ?? 'Non intéressé',
-          dateReponse: item.dateReponse 
-            ? new Date(item.dateReponse).toLocaleDateString() 
+          // ✅ Normalisation appliquée dès le fetch
+          statut: normalizeStatut(item.statut),
+          dateReponse: item.dateReponse
+            ? new Date(item.dateReponse).toLocaleDateString()
             : 'Date inconnue',
           entreprise: item.entreprise ?? 'Inconnue',
           categorie: item.categorie ?? 'Autre',
@@ -51,6 +65,11 @@ const MailsReponses = () => {
       setReponses(mappedData);
     } catch (err) {
       console.error("Erreur chargement réponses:", err);
+      toast({
+        title: "Erreur de chargement",
+        description: "Impossible de charger les réponses",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -60,11 +79,7 @@ const MailsReponses = () => {
     fetchReponses();
   }, []);
 
-  const [selectedReponse, setSelectedReponse] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('toutes');
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Filtrer selon l'onglet actif 
+  // ✅ Filtrage simplifié grâce à la normalisation
   const filteredReponses = useMemo(() => {
     return reponses.filter(r => {
       if (activeTab === 'toutes') return true;
@@ -75,18 +90,29 @@ const MailsReponses = () => {
     });
   }, [activeTab, reponses]);
 
-  const totalPages = useMemo(() => Math.ceil(filteredReponses.length / ITEMS_PER_PAGE), [filteredReponses]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredReponses.length / ITEMS_PER_PAGE)),
+    [filteredReponses]
+  );
 
   const paginatedReponses = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredReponses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredReponses, currentPage]);
 
-  // Réinitialiser page et sélection lors du changement d'onglet 
+  // ✅ Reset page + sélection au changement d'onglet
   useEffect(() => {
     setCurrentPage(1);
     setSelectedReponse(null);
   }, [activeTab]);
+
+  // ✅ Stats simplifiées grâce à normalizeStatut
+  const stats = useMemo(() => ({
+    total: reponses.length,
+    interesse: reponses.filter(r => r.statut === 'Intéressé').length,
+    nonInteresse: reponses.filter(r => r.statut === 'Non intéressé').length,
+    plusTard: reponses.filter(r => r.statut === 'Intéressé plus tard').length,
+  }), [reponses]);
 
   const getStatusIcon = (statut: string) => {
     switch (statut) {
@@ -106,52 +132,45 @@ const MailsReponses = () => {
     }
   };
 
-  const stats = {
-    total: reponses.length,
-    interesse: reponses.filter(r => r.statut === 'Intéressé').length,
-    nonInteresse: reponses.filter(r => r.statut === 'Non intéressé').length,
-    plusTard: reponses.filter(r => r.statut === 'Intéressé plus tard').length
-  };
+  const handleChangeStatus = async (reponse: Reponse, newStatus: string) => {
+    // ✅ Mapping UI -> API corrigé et complet
+    const apiStatusMap: Record<string, string> = {
+      'Intéressé': 'Intéressé',
+      'Intéressé plus tard': 'Intéressé plus tard',
+      'Non intéressé': 'Non intéressé',
+    };
 
-  const handleChangeStatus = async (reponse: any, newStatus: string) => {
-    // Mapping inverse : UI Status -> API Status
-    let apiStatus = '';
-    if (newStatus === 'Intéressé') apiStatus = 'Intéressés';
-    if (newStatus === 'Intéressé plus tard') apiStatus = 'Plus tard';
-    if (newStatus === 'Non intéressé') apiStatus = 'Non intéressés';
+    const apiStatus = apiStatusMap[newStatus];
+    if (!apiStatus) return;
 
     const previousReponses = [...reponses];
 
-    // Optimistic Update
-    setReponses(prev => prev.map(r =>
-      r.id === reponse.id ? { ...r, statut: newStatus } : r
-    ));
-    // Also update selectedReponse if needed
+    // Optimistic update
+    setReponses(prev =>
+      prev.map(r => r.id === reponse.id ? { ...r, statut: newStatus } : r)
+    );
     if (selectedReponse?.id === reponse.id) {
-      setSelectedReponse((prev: any) => ({ ...prev, statut: newStatus }));
+      setSelectedReponse(prev => prev ? { ...prev, statut: newStatus } : prev);
     }
 
     try {
-      await api.patch(`/b2b_response_mail/${reponse.id}`, {
-        statut: apiStatus
-      });
+      await api.patch(`/b2b_response_mail/${reponse.id}`, { statut: apiStatus });
 
       toast({
         title: "Statut mis à jour",
-        description: `Le statut a été changé en "${newStatus}"`,
+        description: `Statut changé en "${newStatus}"`,
       });
     } catch (error: any) {
-      console.error("Erreur mise à jour statut:", error);
-      // Rollback en cas d'erreur
+      // Rollback
       setReponses(previousReponses);
       if (selectedReponse?.id === reponse.id) {
-        setSelectedReponse((prev: any) => ({ ...prev, statut: reponse.statut }));
+        setSelectedReponse(prev => prev ? { ...prev, statut: reponse.statut } : prev);
       }
 
       const errorMessage = error.response?.data?.message || error.message || "Erreur inconnue";
       toast({
         title: "Erreur lors de la mise à jour",
-        description: `${errorMessage}`,
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -170,12 +189,37 @@ const MailsReponses = () => {
   return (
     <Layout title="Gestion des réponses aux mails">
       <div className="space-y-6">
+
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card><CardContent className="p-4 text-center"><Mail className="h-8 w-8 mx-auto mb-2 text-primary" /><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-muted-foreground">Total réponses</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><ThumbsUp className="h-8 w-8 mx-auto mb-2 text-success" /><p className="text-2xl font-bold text-success">{stats.interesse}</p><p className="text-sm text-muted-foreground">Intéressés</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><Clock className="h-8 w-8 mx-auto mb-2 text-warning" /><p className="text-2xl font-bold text-warning">{stats.plusTard}</p><p className="text-sm text-muted-foreground">Plus tard</p></CardContent></Card>
-          <Card><CardContent className="p-4 text-center"><ThumbsDown className="h-8 w-8 mx-auto mb-2 text-destructive" /><p className="text-2xl font-bold text-destructive">{stats.nonInteresse}</p><p className="text-sm text-muted-foreground">Non intéressés</p></CardContent></Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Mail className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-sm text-muted-foreground">Total réponses</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <ThumbsUp className="h-8 w-8 mx-auto mb-2 text-success" />
+              <p className="text-2xl font-bold text-success">{stats.interesse}</p>
+              <p className="text-sm text-muted-foreground">Intéressés</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Clock className="h-8 w-8 mx-auto mb-2 text-warning" />
+              <p className="text-2xl font-bold text-warning">{stats.plusTard}</p>
+              <p className="text-sm text-muted-foreground">Plus tard</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <ThumbsDown className="h-8 w-8 mx-auto mb-2 text-destructive" />
+              <p className="text-2xl font-bold text-destructive">{stats.nonInteresse}</p>
+              <p className="text-sm text-muted-foreground">Non intéressés</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Onglets */}
@@ -189,10 +233,15 @@ const MailsReponses = () => {
 
           <TabsContent value={activeTab} className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
               {/* Liste */}
               <div className="space-y-4">
                 {paginatedReponses.map((reponse) => (
-                  <Card key={reponse.id} className={`cursor-pointer transition-colors hover:bg-secondary/50 ${selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''}`} onClick={() => setSelectedReponse(reponse)}>
+                  <Card
+                    key={reponse.id}
+                    className={`cursor-pointer transition-colors hover:bg-secondary/50 ${selectedReponse?.id === reponse.id ? 'ring-2 ring-primary' : ''}`}
+                    onClick={() => setSelectedReponse(reponse)}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -224,18 +273,30 @@ const MailsReponses = () => {
                 )}
 
                 {/* Pagination */}
-                <div className="flex justify-between items-center pt-4">
-                  <Button variant="outline" onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="flex items-center gap-1">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm text-muted-foreground">Page {currentPage} / {totalPages}</span>
-                  <Button variant="outline" onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="flex items-center gap-1">
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                {filteredReponses.length > 0 && (
+                  <div className="flex justify-between items-center pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
-              {/* Détail sélectionné (inchangé) */}
+              {/* Détail sélectionné */}
               <div className="space-y-4">
                 {selectedReponse ? (
                   <>
@@ -250,10 +311,10 @@ const MailsReponses = () => {
                         <div>
                           <h4 className="font-medium mb-2">Informations</h4>
                           <div className="space-y-2 text-sm">
-                            <p><span className="font-medium">Expéditeur:</span> {selectedReponse.expediteur}</p>
-                            <p><span className="font-medium">Entreprise:</span> {selectedReponse.entreprise}</p>
-                            <p><span className="font-medium">Catégorie:</span> {selectedReponse.categorie}</p>
-                            <p><span className="font-medium">Date:</span> {selectedReponse.dateReponse}</p>
+                            <p><span className="font-medium">Expéditeur :</span> {selectedReponse.expediteur}</p>
+                            <p><span className="font-medium">Entreprise :</span> {selectedReponse.entreprise}</p>
+                            <p><span className="font-medium">Catégorie :</span> {selectedReponse.categorie}</p>
+                            <p><span className="font-medium">Date :</span> {selectedReponse.dateReponse}</p>
                           </div>
                         </div>
                         <div>
@@ -262,11 +323,15 @@ const MailsReponses = () => {
                         </div>
                         <div>
                           <h4 className="font-medium mb-2">Contenu de la réponse</h4>
-                          <p className="text-sm bg-card border border-border p-3 rounded-md">{selectedReponse.contenu}</p>
+                          <p className="text-sm bg-card border border-border p-3 rounded-md whitespace-pre-wrap">
+                            {selectedReponse.contenu}
+                          </p>
                         </div>
                         <div>
                           <h4 className="font-medium mb-2">Mail original envoyé</h4>
-                          <p className="text-sm bg-muted/50 p-3 rounded-md text-muted-foreground">{selectedReponse.mailOriginal}</p>
+                          <p className="text-sm bg-muted/50 p-3 rounded-md text-muted-foreground whitespace-pre-wrap">
+                            {selectedReponse.mailOriginal || 'Non disponible'}
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
@@ -280,13 +345,28 @@ const MailsReponses = () => {
                         <div className="space-y-3">
                           <h5 className="font-medium">Changer le statut :</h5>
                           <div className="flex flex-wrap gap-2">
-                            <Button variant={selectedReponse.statut === 'Intéressé' ? 'default' : 'outline'} size="sm" onClick={() => handleChangeStatus(selectedReponse, 'Intéressé')} className="gap-2">
+                            <Button
+                              variant={selectedReponse.statut === 'Intéressé' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handleChangeStatus(selectedReponse, 'Intéressé')}
+                              className="gap-2"
+                            >
                               <ThumbsUp className="h-3 w-3" /> Intéressé
                             </Button>
-                            <Button variant={selectedReponse.statut === 'Intéressé plus tard' ? 'default' : 'outline'} size="sm" onClick={() => handleChangeStatus(selectedReponse, 'Intéressé plus tard')} className="gap-2">
+                            <Button
+                              variant={selectedReponse.statut === 'Intéressé plus tard' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handleChangeStatus(selectedReponse, 'Intéressé plus tard')}
+                              className="gap-2"
+                            >
                               <Clock className="h-3 w-3" /> Plus tard
                             </Button>
-                            <Button variant={selectedReponse.statut === 'Non intéressé' ? 'destructive' : 'outline'} size="sm" onClick={() => handleChangeStatus(selectedReponse, 'Non intéressé')} className="gap-2">
+                            <Button
+                              variant={selectedReponse.statut === 'Non intéressé' ? 'destructive' : 'outline'}
+                              size="sm"
+                              onClick={() => handleChangeStatus(selectedReponse, 'Non intéressé')}
+                              className="gap-2"
+                            >
                               <ThumbsDown className="h-3 w-3" /> Non intéressé
                             </Button>
                           </div>
@@ -311,4 +391,4 @@ const MailsReponses = () => {
   );
 };
 
-export default MailsReponses; 
+export default MailsReponses;
