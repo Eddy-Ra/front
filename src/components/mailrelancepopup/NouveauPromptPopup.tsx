@@ -146,7 +146,7 @@ export const NouveauPromptPopup: React.FC<NouveauPromptPopupProps> = ({
       if (formData.nom.length > 100) throw new Error('Le nom ne doit pas dépasser 100 caractères');
       if (formData.texte.length > 5000) throw new Error('Le texte ne doit pas dépasser 5000 caractères');
 
-      const webhookUrl = 'https://n8n.omega-connect.tech/webhook/ace774ca-91e7-4ca0-9121-relance-prompt-v1';
+      const webhookUrl = 'https://n8n.projets-omega.net/webhook/ace774ca-91e7-4ca0-9121-relance-prompt';
 
       console.log(formData);
 

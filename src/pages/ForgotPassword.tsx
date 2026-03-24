@@ -34,7 +34,7 @@ const ForgotPassword = () => {
             }
 
             // 2. Envoyer au webhook n8n
-            const WEBHOOK_URL = 'https://n8n.omega-connect.tech/webhook/change-pass';
+            const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/change-pass';
 
             await api.post(WEBHOOK_URL, {
                 email: email,

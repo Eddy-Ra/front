@@ -99,7 +99,7 @@ const EnvoiMasse = () => {
 
 
   const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/simulate-progress';
-  const WEBHOOK_URL_RELANCE = 'https://n8n.omega-connect.tech/webhook/simulate-progress-relance';
+ 
 
 
 
@@ -253,7 +253,7 @@ const EnvoiMasse = () => {
     try {
 
       const identifiant_unique = `individual-${contact.id}-${Date.now()}`;
-      const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook/realtime";
+      const webhookUrl_realtime = "https://n8n.projets-omega.net/webhook/realtime";
 
       // 1. Enregistrement en temps réel
       await api.post(webhookUrl_realtime, {
@@ -319,8 +319,8 @@ const EnvoiMasse = () => {
     const identifiant_unique = `batch-${category.id}-${Date.now()}`
     let compteur = 0;
     const totalContacts = category.contacts.length;
-    const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook/realtime";//prod
-    //const webhookUrl_realtime = "https://n8n.omega-connect.tech/webhook/realtime";
+    const webhookUrl_realtime = "https://n8n.projets-omega.net/webhook/realtime";//prod
+    //const webhookUrl_realtime = "https://n8n.projets-omega.net/webhook/realtime";
     const reponse = await api.post(webhookUrl_realtime, {
       contacts: category.contacts,
       contacts_len: totalContacts,

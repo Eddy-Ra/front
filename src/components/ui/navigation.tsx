@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Mail, Send, Reply,
@@ -55,7 +56,7 @@ let intervalId: NodeJS.Timeout | null = null;
 let notifId = 1;
 
 // ============================================================
-// FETCH AVEC PAGINATION COMPLÈTE
+// FETCH
 // ============================================================
 const extractArray = (data: any): any[] => {
   if (Array.isArray(data))          return data;
@@ -70,7 +71,6 @@ const fetchAllPages = async (endpoint: string): Promise<any[]> => {
   const limit = 1000;
   let offset = 0;
   let allData: any[] = [];
-
   while (true) {
     const res = await api.get(endpoint, { params: { limit, offset } });
     const batch = extractArray(res.data);
@@ -78,7 +78,6 @@ const fetchAllPages = async (endpoint: string): Promise<any[]> => {
     if (batch.length < limit) break;
     offset += limit;
   }
-
   return allData;
 };
 
@@ -102,8 +101,8 @@ const useNotifications = () => {
       const attenteAll = attenteRes.status === 'fulfilled' ? attenteRes.value : [];
       console.log('🔍 Statuts trouvés:', [...new Set(attenteAll.map((i: any) => i.statut))]);
 
-      const attenteCount = attenteAll.filter((item: any) => item.statut === 'En cours').length;
-      const reponsesCount = repRes.status === 'fulfilled' ? repRes.value.length : 0;
+      const attenteCount  = attenteAll.filter((item: any) => item.statut === 'En cours').length;
+      const reponsesCount = repRes.status      === 'fulfilled' ? repRes.value.length      : 0;
       const contactsCount = contactsRes.status === 'fulfilled' ? contactsRes.value.length : 0;
 
       console.log('📊 Counts:', { attenteCount, reponsesCount, contactsCount });
@@ -117,7 +116,6 @@ const useNotifications = () => {
       const newNotifs: Notification[] = [];
 
       if (globalLastCounts.attente === -1) {
-        // ✅ Premier chargement
         if (attenteCount > 0) {
           newNotifs.push({
             id: notifId++, read: false, time,
@@ -150,7 +148,6 @@ const useNotifications = () => {
           });
         }
       } else {
-        // ✅ Polls suivants — seulement les nouveautés
         if (attenteCount > globalLastCounts.attente) {
           newNotifs.push({
             id: notifId++, read: false, time,
@@ -251,7 +248,6 @@ const bgMap = {
   info:    'bg-blue-500/10'
 };
 
-// ✅ Redirection selon le type et le titre de la notif
 const getRedirectPath = (notif: Notification): string => {
   if (notif.type === 'success') return '/mails-reponses';
   if (notif.type === 'warning') return '/envoi-masse';
@@ -260,7 +256,7 @@ const getRedirectPath = (notif: Notification): string => {
 };
 
 // ============================================================
-// COMPOSANT NOTIFICATION PANEL
+// NOTIFICATION PANEL
 // ============================================================
 interface NotificationPanelProps {
   notifications: Notification[];
@@ -276,21 +272,9 @@ const NotificationPanel = ({
   onDelete, onDeleteAll, onRefresh
 }: NotificationPanelProps) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate(); // ✅ navigate ici car on est dans le Router
+  const navigate = useNavigate();
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // ✅ Clic notif → marquer lu + fermer panel + rediriger
   const handleNotifClick = (notif: Notification) => {
     onMarkRead(notif.id);
     setOpen(false);
@@ -298,125 +282,151 @@ const NotificationPanel = ({
   };
 
   return (
-    <div ref={ref} className="relative">
-
-      {/* Bouton */}
-      <Button
-        variant="glass"
-        size="sm"
-        className="gap-2 hover-glow relative"
+    <>
+      {/* ✅ Bouton avec cloche dynamique bleu/vert */}
+      <button
         onClick={() => setOpen(!open)}
+        className="relative flex items-center gap-3 px-5 py-2.5 rounded-xl border border-white/20 bg-black/40 hover:bg-black/60 transition-all duration-200 text-white shadow-lg"
       >
-        <Bell className={cn("h-4 w-4", unreadCount > 0 && "animate-bounce")} />
-        Notifications
+        <Bell className={cn(
+          "h-5 w-5 transition-colors duration-300",
+          unreadCount > 0 ? "text-red-400 fill-red-400" : "text-blue-400 fill-blue-400"
+        )} />
+        <span className="text-base font-medium tracking-wide">Notifications</span>
         {unreadCount > 0 && (
-          <span className="ml-1 px-2 py-0.5 text-xs bg-gradient-primary text-primary-foreground rounded-full animate-pulse">
+          <span className="absolute -top-2.5 -right-2.5 h-6 w-6 rounded-full bg-purple-600 text-white text-xs flex items-center justify-center font-bold shadow-md">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
-      </Button>
+      </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute right-0 top-12 w-96 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* ✅ Portal — rendu dans le body, hors du header */}
+      {createPortal(
+        <>
+          {/* Overlay sans blur */}
+          {open && (
+            <div
+              className="fixed inset-0 bg-black/30 z-[9998]"
+              onClick={() => setOpen(false)}
+            />
+          )}
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-white text-sm">Alertes système</h3>
-              {unreadCount > 0 && (
-                <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
-                  {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              {unreadCount > 0 && (
-                <button
-                  onClick={onMarkAllRead}
-                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
-                >
-                  <Check className="h-3 w-3" />
-                  Tout lire
-                </button>
-              )}
-              <button
-                onClick={() => setOpen(false)}
-                className="text-zinc-500 hover:text-white transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Liste */}
-          <div className="max-h-96 overflow-y-auto divide-y divide-white/5">
-            {notifications.length === 0 ? (
-              <div className="py-10 text-center space-y-2">
-                <CheckCircle className="h-8 w-8 text-green-400 mx-auto opacity-50" />
-                <p className="text-zinc-500 text-sm">Aucune alerte système</p>
+          {/* Panneau latéral pleine hauteur */}
+          <div
+            className={cn(
+              "fixed top-0 right-0 h-full w-96 z-[9999] flex flex-col",
+              "bg-zinc-950 border-l border-white/10 shadow-2xl",
+              "transition-transform duration-300 ease-in-out",
+              open ? "translate-x-0" : "translate-x-full"
+            )}
+          >
+            {/* Header panneau */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-zinc-900/80">
+              <div className="flex items-center gap-3">
+                {/* ✅ Cloche dynamique dans le panneau aussi */}
+                <Bell className={cn(
+                  "h-5 w-5 transition-colors duration-300",
+                  unreadCount > 0 ? "text-red-400 fill-red-400" : "text-blue-400 fill-blue-400"
+                )} />
+                <h3 className="font-semibold text-white text-base">Alertes système</h3>
+                {unreadCount > 0 && (
+                  <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                    {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
-            ) : (
-              notifications.map(notif => (
-                <div
-                  key={notif.id}
-                  onClick={() => handleNotifClick(notif)} // ✅ clic → redirect
-                  className={cn(
-                    "flex items-start gap-3 px-4 py-3 transition-colors group cursor-pointer",
-                    !notif.read
-                      ? 'bg-purple-500/5 hover:bg-purple-500/10'
-                      : 'hover:bg-white/5'
-                  )}
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={onMarkAllRead}
+                    className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Check className="h-3 w-3" />
+                    Tout lire
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="text-zinc-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
                 >
-                  <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 ${bgMap[notif.type]}`}>
-                    {iconMap[notif.type]}
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Liste notifications */}
+            <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full space-y-3 text-center px-6">
+                  <div className="p-4 rounded-full bg-green-500/10">
+                    <CheckCircle className="h-10 w-10 text-green-400 opacity-60" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      "text-sm font-medium",
-                      !notif.read ? 'text-white' : 'text-zinc-300'
-                    )}>
-                      {notif.title}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
-                      {notif.message}
-                    </p>
-                    <p className="text-xs text-zinc-600 mt-1">{notif.time}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {!notif.read && (
-                      <div className="h-2 w-2 rounded-full bg-purple-400" />
-                    )}
-                    {/* ✅ stopPropagation pour ne pas déclencher handleNotifClick */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDelete(notif.id); }}
-                      className="text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
+                  <p className="text-zinc-400 text-sm font-medium">Aucune alerte système</p>
+                  <p className="text-zinc-600 text-xs">Tout fonctionne normalement</p>
                 </div>
-              ))
+              ) : (
+                notifications.map(notif => (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleNotifClick(notif)}
+                    className={cn(
+                      "flex items-start gap-3 px-5 py-4 transition-all duration-150 group cursor-pointer",
+                      !notif.read
+                        ? 'bg-purple-500/5 hover:bg-purple-500/10 border-l-2 border-l-purple-500'
+                        : 'hover:bg-white/5 border-l-2 border-l-transparent'
+                    )}
+                  >
+                    <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${bgMap[notif.type]}`}>
+                      {iconMap[notif.type]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        !notif.read ? 'text-white' : 'text-zinc-300'
+                      )}>
+                        {notif.title}
+                      </p>
+                      <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                        {notif.message}
+                      </p>
+                      <p className="text-xs text-zinc-600 mt-1.5">{notif.time}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                      {!notif.read && (
+                        <div className="h-2 w-2 rounded-full bg-purple-400" />
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(notif.id); }}
+                        className="text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-400/10"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="px-5 py-4 border-t border-white/10 bg-zinc-900/80 flex justify-between items-center">
+                <span className="text-xs text-zinc-500">
+                  {notifications.length} alerte{notifications.length > 1 ? 's' : ''} au total
+                </span>
+                <button
+                  onClick={onDeleteAll}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Tout effacer
+                </button>
+              </div>
             )}
           </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-white/10 flex justify-between items-center">
-              <span className="text-xs text-zinc-600">
-                {notifications.length} alerte{notifications.length > 1 ? 's' : ''}
-              </span>
-              <button
-                onClick={onDeleteAll}
-                className="text-xs text-red-400 hover:text-red-300 transition-colors"
-              >
-                Tout effacer
-              </button>
-            </div>
-          )}
-        </div>
+        </>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
@@ -450,7 +460,7 @@ export function Sidebar({ className }: SidebarProps) {
   const handleLogout = async () => {
     if (user?.id) {
       try {
-        await api.patch(`/user/${user.id}`, { is_active: false });
+        await api.patch(`/users/${user.id}`, { is_active: false });
       } catch (e) {
         console.error("Erreur déconnexion statut", e);
       }
