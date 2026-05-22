@@ -9,22 +9,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-const SYNC_CURSOR_KEY = 'dashboard_sync_last_id';
-const BATCH_SIZE      = 500;
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ActivityEvent = {
   action: string;
   time:   string;
-  type:   'success' | 'info' | 'sync';
-};
-
-type SyncProgress = {
-  currentBatch: number;
-  totalSynced:  number;
-  lastId:       number | null;
-  done:         boolean;
+  type:   'success' | 'info';
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,17 +71,11 @@ const Dashboard = () => {
   const [loading, setLoading]                   = useState(true);
 
   // ── Sync ──────────────────────────────────────────────────────────────────
-  const [isSyncing, setIsSyncing]       = useState(false);
-  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
-
-  // ── Activité récente (séparée pour mise à jour live pendant la sync) ──────
-  const [liveActivity, setLiveActivity] = useState<ActivityEvent[] | null>(null);
-  // null = utiliser les données normales, non-null = override live pendant sync
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [showScrollTop, setShowScrollTop]               = useState(false);
   const [showCategoryScrollTop, setShowCategoryScrollTop] = useState(false);
-  const categoryWrapperRef  = useRef<HTMLDivElement>(null);
-  const activityScrollRef   = useRef<HTMLDivElement>(null);
+  const categoryWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── Scroll listeners ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -112,7 +95,7 @@ const Dashboard = () => {
 
   // ── Pagination complète ───────────────────────────────────────────────────
   const fetchAllPages = async (endpoint: string): Promise<any[]> => {
-    const limit = 1000;
+    const limit = 500000000;
     let offset  = 0;
     let allData: any[] = [];
     while (true) {
@@ -154,166 +137,33 @@ const Dashboard = () => {
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ✅ SYNCHRONISATION PAR CURSEUR + MISE À JOUR LIVE DE L'ACTIVITÉ RÉCENTE
+  // ✅ SYNCHRONISATION SIMPLE (identique à Contacts)
   // ─────────────────────────────────────────────────────────────────────────
   const handleSync = async () => {
     if (isSyncing) return;
-    setIsSyncing(true);
-    setSyncProgress(null);
-
-    // Snapshot de l'activité actuelle au début de la sync
-    // → on la garde comme base et on y ajoute les événements au fil des batches
-    const baseActivity: ActivityEvent[] = buildActivityFromData(mails, reponses, reponseEnAttente);
-    const syncEvents: ActivityEvent[]   = [];
-
-    // Fonction utilitaire : insère l'event en tête et coupe à 10 items
-    const pushLiveEvent = (event: ActivityEvent) => {
-      syncEvents.unshift(event);           // plus récent en premier
-      const merged = [...syncEvents, ...baseActivity].slice(0, 10);
-      setLiveActivity(merged);
-
-      // Auto-scroll vers le haut de l'activité récente pour voir le nouveau event
-      const vp = activityScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-      vp?.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
     try {
-      const stored = localStorage.getItem(SYNC_CURSOR_KEY);
-      let lastId: number = stored ? parseInt(stored, 10) : 0;
-
-      let batchNumber = 0;
-      let totalSynced = 0;
-      let hasMore     = true;
-
-      console.log(`[Sync] Démarrage — curseur initial : id > ${lastId}`);
-
-      while (hasMore) {
-        batchNumber++;
-        setSyncProgress({ currentBatch: batchNumber, totalSynced, lastId, done: false });
-
-        // Événement live : "Sync batch #N en cours…"
-        pushLiveEvent({
-          action: `🔄 Sync batch #${batchNumber} — récupération depuis id = ${lastId}…`,
-          time:   formatRelativeTime(new Date()),
-          type:   'sync',
-        });
-
-        // 1. Webhook n8n
-        await api.post(
-          'https://n8n.projets-omega.net/webhook/c9118e3f-fc01-478e-9031-a5a7dee8c53e',
-          {
-            action:    'sync_trigger',
-            source:    'manual_button',
-            timestamp: new Date().toISOString(),
-            last_id:   lastId,
-            limit:     BATCH_SIZE,
-          }
-        );
-
-        // 2. Fetch du batch
-        const res = await api.get('/b2b_datasynch', {
-          params: { last_id: lastId, limit: BATCH_SIZE },
-        });
-        const raw: any[] = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.data)
-            ? res.data.data
-            : [];
-
-        console.log(`[Sync] Batch #${batchNumber} — ${raw.length} contacts (id > ${lastId})`);
-
-        // 3. Batch vide → fin
-        if (raw.length === 0) {
-          pushLiveEvent({
-            action: `✅ Sync terminée — aucun nouveau contact après id = ${lastId}`,
-            time:   formatRelativeTime(new Date()),
-            type:   'success',
-          });
-          hasMore = false;
-          break;
+      setIsSyncing(true);
+      await api.post(
+        'https://n8n.projets-omega.net/webhook/c9118e3f-fc01-478e-9031-a5a7dee8c53e',
+        {
+          action:    'sync_trigger',
+          source:    'manual_button',
+          timestamp: new Date().toISOString(),
         }
-
-        // 4. Mémoriser le curseur
-        const newLastId = Math.max(...raw.map((c: any) => Number(c.id)));
-        lastId          = newLastId;
-        totalSynced    += raw.length;
-        localStorage.setItem(SYNC_CURSOR_KEY, String(newLastId));
-
-        // 5. Événement live : résumé du batch
-        pushLiveEvent({
-          action: `✅ Batch #${batchNumber} — ${raw.length} contacts synchronisés (curseur → id = ${newLastId})`,
-          time:   formatRelativeTime(new Date()),
-          type:   'success',
-        });
-
-        // 6. Contacts notables du batch ajoutés en live (max 3 pour ne pas saturer)
-        raw.slice(0, 3).forEach((contact: any) => {
-          const name = contact.full_name ?? contact.nom ?? contact.email ?? 'Contact inconnu';
-          pushLiveEvent({
-            action: `👤 Nouveau contact synchronisé : ${name}`,
-            time:   formatRelativeTime(new Date()),
-            type:   'info',
-          });
-        });
-        if (raw.length > 3) {
-          pushLiveEvent({
-            action: `… et ${raw.length - 3} autre(s) contact(s) dans ce batch`,
-            time:   formatRelativeTime(new Date()),
-            type:   'info',
-          });
-        }
-
-        setSyncProgress({ currentBatch: batchNumber, totalSynced, lastId: newLastId, done: false });
-
-        if (raw.length < BATCH_SIZE) {
-          hasMore = false;
-        }
-      }
-
-      // Événement final
-      pushLiveEvent({
-        action: `🎉 Synchronisation complète — ${totalSynced.toLocaleString()} contacts traités`,
-        time:   formatRelativeTime(new Date()),
-        type:   'success',
-      });
-
-      setSyncProgress({ currentBatch: batchNumber, totalSynced, lastId, done: true });
-
-      // Recharge complète des données UI
+      );
       await loadAllData();
-
-      console.log(`[Sync] ✅ Complet — ${totalSynced} contacts, curseur = ${lastId}`);
-
     } catch (error) {
-      console.error('[Sync] ❌ Erreur:', error);
-      pushLiveEvent({
-        action: `❌ Erreur de synchronisation — vérifiez la console`,
-        time:   formatRelativeTime(new Date()),
-        type:   'sync',
-      });
-      setSyncProgress(null);
+      console.error('Erreur synchronisation:', error);
     } finally {
       setIsSyncing(false);
-      // Garder l'activité live 8s puis repasser aux données normales
-      setTimeout(() => {
-        setLiveActivity(null);
-        setSyncProgress(null);
-      }, 8000);
     }
   };
 
-  const handleResetCursor = () => {
-    localStorage.removeItem(SYNC_CURSOR_KEY);
-    setSyncProgress(null);
-    console.log('[Sync] Curseur réinitialisé');
-  };
-
-  // ── Activité récente : live si sync en cours, sinon données normales ───────
-  const normalActivity = useMemo(
+  // ── Activité récente ──────────────────────────────────────────────────────
+  const recentActivity: ActivityEvent[] = useMemo(
     () => buildActivityFromData(mails, reponses, reponseEnAttente),
     [mails, reponses, reponseEnAttente]
   );
-  const recentActivity: ActivityEvent[] = liveActivity ?? normalActivity;
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const tauxReponse = useMemo(() => {
@@ -338,17 +188,17 @@ const Dashboard = () => {
       }).length;
 
     const trend = (cur: number, prev: number) => {
-      if (!prev && !cur)  return { value: 0,             isPositive: true,     label: 'Aucune donnée'   };
-      if (!prev && cur)   return { value: cur,            isPositive: true,     label: 'ce mois'         };
+      if (!prev && !cur)  return { value: 0,           isPositive: true,  label: 'Aucune donnée'   };
+      if (!prev && cur)   return { value: cur,          isPositive: true,  label: 'ce mois'         };
       const d = Math.round(((cur - prev) / prev) * 100);
-      return                     { value: Math.abs(d),    isPositive: d >= 0,   label: 'vs mois dernier' };
+      return                   { value: Math.abs(d),    isPositive: d >= 0, label: 'vs mois dernier' };
     };
 
     return [
-      { title: 'Total Contacts',   value: contacts.length.toLocaleString(),        description: 'Contacts dans la base',          icon: Users,        trend: trend(byMonth(contacts, cm, cy),        byMonth(contacts, pm, py))        },
-      { title: 'Mails Envoyés',    value: mails.length.toLocaleString(),            description: 'Ce mois-ci',                     icon: Send,         trend: trend(byMonth(mails, cm, cy),           byMonth(mails, pm, py))           },
-      { title: 'Réponses Reçues',  value: reponses.length.toLocaleString(),         description: `Taux de réponse: ${tauxReponse}%`, icon: Reply,      trend: trend(byMonth(reponses, cm, cy),        byMonth(reponses, pm, py))        },
-      { title: 'Mails en Attente', value: reponseEnAttente.length.toLocaleString(), description: 'À valider',                      icon: AlertCircle,  trend: trend(byMonth(reponseEnAttente, cm, cy), byMonth(reponseEnAttente, pm, py)) },
+      { title: 'Total Contacts',   value: contacts.length.toLocaleString(),        description: 'Contacts dans la base',            icon: Users,       trend: trend(byMonth(contacts, cm, cy),         byMonth(contacts, pm, py))         },
+      { title: 'Mails Envoyés',    value: mails.length.toLocaleString(),            description: 'Ce mois-ci',                       icon: Send,        trend: trend(byMonth(mails, cm, cy),            byMonth(mails, pm, py))            },
+      { title: 'Réponses Reçues',  value: reponses.length.toLocaleString(),         description: `Taux de réponse: ${tauxReponse}%`, icon: Reply,       trend: trend(byMonth(reponses, cm, cy),         byMonth(reponses, pm, py))         },
+      { title: 'Mails en Attente', value: reponseEnAttente.length.toLocaleString(), description: 'À valider',                        icon: AlertCircle, trend: trend(byMonth(reponseEnAttente, cm, cy), byMonth(reponseEnAttente, pm, py)) },
     ];
   }, [contacts, mails, reponses, reponseEnAttente, tauxReponse]);
 
@@ -381,12 +231,9 @@ const Dashboard = () => {
     navigate('/envoi-masse');
   };
 
-  const storedCursor = localStorage.getItem(SYNC_CURSOR_KEY);
-
   // ─── Couleur de l'indicateur selon le type d'événement ───────────────────
   const activityDotColor = (type: ActivityEvent['type']) => {
     if (type === 'success') return 'bg-success';
-    if (type === 'sync')    return 'bg-secondary animate-pulse';
     return 'bg-primary';
   };
 
@@ -492,44 +339,26 @@ const Dashboard = () => {
                   <AlertCircle className="h-5 w-5 text-secondary" />
                 </div>
                 Activité Récente
-                {/* Badge "LIVE" visible pendant la sync */}
-                {isSyncing && (
-                  <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-secondary/20 text-secondary border border-secondary/30 animate-pulse">
-                    <span className="h-1.5 w-1.5 rounded-full bg-secondary inline-block" />
-                    LIVE
-                  </span>
-                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 bg-gradient-glass/10">
               {renderContent(
-                <div ref={activityScrollRef}>
-                  <ScrollArea className="h-[260px]">
-                    <div className="space-y-3 pr-2">
-                      {recentActivity.length > 0
-                        ? recentActivity.map((activity, i) => (
-                          <div
-                            key={i}
-                            className={`flex items-center gap-3 p-3 border rounded-lg transition-all duration-300 ${
-                              activity.type === 'sync'
-                                ? 'border-secondary/30 bg-secondary/5'
-                                : 'border-border'
-                            }`}
-                          >
-                            <div className={`h-2 w-2 rounded-full flex-shrink-0 ${activityDotColor(activity.type)}`} />
-                            <div className="flex-1 min-w-0">
-                              <p className={`font-medium text-sm truncate ${activity.type === 'sync' ? 'text-secondary' : ''}`}>
-                                {activity.action}
-                              </p>
-                              <p className="text-xs text-muted-foreground">{activity.time}</p>
-                            </div>
+                <ScrollArea className="h-[260px]">
+                  <div className="space-y-3 pr-2">
+                    {recentActivity.length > 0
+                      ? recentActivity.map((activity, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg">
+                          <div className={`h-2 w-2 rounded-full flex-shrink-0 ${activityDotColor(activity.type)}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{activity.action}</p>
+                            <p className="text-xs text-muted-foreground">{activity.time}</p>
                           </div>
-                        ))
-                        : <p className="text-center text-sm text-muted-foreground py-8">Aucune activité récente</p>
-                      }
-                    </div>
-                  </ScrollArea>
-                </div>
+                        </div>
+                      ))
+                      : <p className="text-center text-sm text-muted-foreground py-8">Aucune activité récente</p>
+                    }
+                  </div>
+                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -560,7 +389,7 @@ const Dashboard = () => {
                   <p className="text-sm text-muted-foreground mt-2 ml-11 font-poppins">Envoi en masse</p>
                 </button>
 
-                {/* ── Synchroniser par curseur ───────────────────────────── */}
+                {/* ── Synchroniser ──────────────────────────────────────── */}
                 <button
                   onClick={handleSync}
                   disabled={isSyncing}
@@ -577,53 +406,10 @@ const Dashboard = () => {
                       {isSyncing ? 'Synchronisation...' : 'Synchroniser'}
                     </span>
                   </div>
-
-                  {/* Progression live */}
-                  {isSyncing && syncProgress && !syncProgress.done && (
-                    <div className="mt-3 ml-11 space-y-1">
-                      <p className="text-xs text-muted-foreground font-poppins">
-                        Batch #{syncProgress.currentBatch} — {syncProgress.totalSynced.toLocaleString()} contacts traités
-                      </p>
-                      <p className="text-xs text-muted-foreground/60 font-poppins">
-                        Curseur : id = {syncProgress.lastId ?? 0}
-                      </p>
-                      <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden mt-1">
-                        <div className="h-1 bg-secondary rounded-full animate-pulse w-full" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Succès */}
-                  {!isSyncing && syncProgress?.done && (
-                    <div className="mt-3 ml-11">
-                      <p className="text-xs text-success font-poppins">
-                        ✅ {syncProgress.totalSynced.toLocaleString()} contacts synchronisés
-                      </p>
-                      <p className="text-xs text-muted-foreground/60 font-poppins">
-                        Curseur mémorisé : id = {syncProgress.lastId}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* État de repos */}
-                  {!isSyncing && !syncProgress && (
-                    <p className="text-xs text-muted-foreground mt-2 ml-11 font-poppins">
-                      {storedCursor
-                        ? `↪ Reprend depuis id = ${storedCursor}`
-                        : 'Synchronisation Directe'}
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground mt-2 ml-11 font-poppins">
+                    Synchronisation directe
+                  </p>
                 </button>
-
-                {/* Reset curseur */}
-                {storedCursor && !isSyncing && (
-                  <button
-                    onClick={handleResetCursor}
-                    className="w-full px-4 py-2 text-xs text-muted-foreground/60 hover:text-destructive border border-dashed border-white/10 hover:border-destructive/40 rounded-lg transition-all duration-200 font-poppins"
-                  >
-                    ↺ Réinitialiser le curseur (repartir de id = 0)
-                  </button>
-                )}
 
               </div>
             </CardContent>

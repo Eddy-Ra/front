@@ -19,7 +19,7 @@ const ForgotPassword = () => {
 
         try {
             // 1. Vérifier si l'utilisateur existe
-            const res = await api.get('/users');
+            const res = await api.get('/user');
             const users = res.data;
             const user = users.find((u: any) => u.email === email);
 
@@ -34,19 +34,26 @@ const ForgotPassword = () => {
             }
 
             // 2. Envoyer au webhook n8n
-            const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/change-pass';
-
-            await api.post(WEBHOOK_URL, {
+            const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
+            
+            toast({
+                title: "E-mail en cours d'envoi",
+                description: "Un lien de réinitialisation a été en cours d'envoi à votre adresse e-mail.",
+            });
+            const response=await api.post(WEBHOOK_URL, {
+                type:"reset_password",
                 email: email,
                 reset_link: `${window.location.origin}${window.location.pathname}#/reset-password?email=${encodeURIComponent(email)}&ts=${Date.now()}`,
                 timestamp: new Date().toISOString()
             });
+            const message = response.data?.message || "E-mail envoyé avec succès.";
 
             setIsSent(true);
             toast({
                 title: "E-mail envoyé",
-                description: "Un lien de réinitialisation a été envoyé à votre adresse e-mail.",
+                description:message,
             });
+            
 
         } catch (err) {
             console.error("Erreur mot de passe oublié:", err);

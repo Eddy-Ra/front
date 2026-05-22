@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Edit, Check, X, Bot, RefreshCw, Loader2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Layout } from '@/components/ui/navigation';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,7 @@ const MailsAEnvoyer = () => {
   const [isMailsLoading, setIsMailsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const actionLockRef = useRef(false);
 
   const fetchPrompts = async () => {
     setIsPromptsLoading(true);
@@ -60,6 +61,7 @@ const MailsAEnvoyer = () => {
       const timestamp = new Date().getTime();
       const res = await api.get(`/prompt`);
       setPrompts(res.data);
+      setMailsGeneres(res.data);
     } catch (err) {
       console.error('Erreur chargement prompts:', err);
       setError('Erreur lors du chargement des prompts');
@@ -71,9 +73,8 @@ const MailsAEnvoyer = () => {
   const fetchMailsGeneres = async () => {
     setIsMailsLoading(true);
     try {
-      const timestamp = new Date().getTime();
       const res = await api.get(`/mailsgeneres`);
-      setMailsGeneres(res.data);
+      
       setError(null);
     } catch (err) {
       console.error('Erreur chargement mails générés:', err);
@@ -113,6 +114,8 @@ const MailsAEnvoyer = () => {
 
   // 📝 Changement 1/3: handleValidateMail met le statut à 'Validé'
   const handleValidateMail = async (mail: MailGenere) => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       setLoading(true);
       await api.patch(`/mailsgeneres/${mail.id}`, { statut: 'Validé' });
@@ -128,11 +131,14 @@ const MailsAEnvoyer = () => {
       console.error('Erreur validation mail:', error);
     } finally {
       setLoading(false);
+      actionLockRef.current = false;
     }
   };
 
   // 📝 Changement 2/3: handleRejectMail (bouton X) met le statut à 'En attente'
   const handleRejectMail = async (mail: MailGenere) => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
     try {
       setLoading(true);
       // Au lieu de 'Refusé', on met le statut à 'En attente'
@@ -145,6 +151,7 @@ const MailsAEnvoyer = () => {
       console.error('Erreur retour en attente (rejet):', error);
     } finally {
       setLoading(false);
+      actionLockRef.current = false;
     }
   };
 
@@ -171,6 +178,8 @@ const MailsAEnvoyer = () => {
   };
   const confirmDeleteMail = async () => {
     if (!mailToDelete) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
 
     try {
       setLoading(true);
@@ -189,6 +198,7 @@ const MailsAEnvoyer = () => {
       setError('Erreur lors de la suppression du mail.');
     } finally {
       setLoading(false);
+      actionLockRef.current = false;
     }
   };
 
@@ -208,6 +218,8 @@ const MailsAEnvoyer = () => {
 
   const handleSaveEdit = async () => {
     if (!selectedMail) return;
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
 
     try {
       setLoading(true);
@@ -229,6 +241,7 @@ const MailsAEnvoyer = () => {
       console.error('Erreur sauvegarde modifications:', error);
     } finally {
       setLoading(false);
+      actionLockRef.current = false;
     }
   };
 
@@ -282,6 +295,9 @@ const MailsAEnvoyer = () => {
   };
 
   const generetemails = (prompt: Prompt) => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+
     setPrompts(prev => prev.map(p =>
       p.id === prompt.id ? { ...p, utilise: p.utilise + 1 } : p
     ));
@@ -302,11 +318,15 @@ const MailsAEnvoyer = () => {
       setPrompts(prev => prev.map(p =>
         p.id === prompt.id ? { ...p, utilise: p.utilise - 1 } : p
       ));
+      setLoading(false);
+      actionLockRef.current = false;
+      return;
     }
 
     setTimeout(() => {
       fetchMailsGeneres();
       setLoading(false);
+      actionLockRef.current = false;
     }, 25000);
 
     fetchPrompts();

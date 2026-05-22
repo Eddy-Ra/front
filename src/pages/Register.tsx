@@ -32,7 +32,7 @@ const Register = () => {
 
         try {
             // 1. Vérifier si l'e-mail existe déjà
-            const res = await api.get('/users');
+            const res = await api.get('/user');
             const users = res.data;
             const existingUser = users.find((u: any) => u.email === email);
 
@@ -45,7 +45,7 @@ const Register = () => {
                 setIsLoading(false);
                 return;
             }
-             const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
+            const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
 
             const confirmationLink = `${window.location.origin}${window.location.pathname}#/confirm-registration?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&ts=${Date.now()}`;
 

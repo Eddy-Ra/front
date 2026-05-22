@@ -460,7 +460,7 @@ export function Sidebar({ className }: SidebarProps) {
   const handleLogout = async () => {
     if (user?.id) {
       try {
-        await api.patch(`/users/${user.id}`, { is_active: false });
+        await api.patch(`/user/${user.id}`, { is_active: false });
       } catch (e) {
         console.error("Erreur déconnexion statut", e);
       }

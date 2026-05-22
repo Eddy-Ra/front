@@ -58,10 +58,10 @@ const MailsAEnvoyer = () => {
   const fetchPrompts = async () => {
     setIsPromptsLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const res = await api.get(`/relance-prompt?_t=${timestamp}`);
+      
+      const res = await api.get(`/relance-prompt`);
       setPrompts(res.data);
-
+      setMailsGeneres(res.data);
     } catch (err) {
       console.error('Erreur chargement prompts:', err);
       setError('Erreur lors du chargement des prompts');
@@ -73,9 +73,8 @@ const MailsAEnvoyer = () => {
   const fetchMailsGeneres = async () => {
     setIsMailsLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const res = await api.get(`/relance-mailsgen?_t=${timestamp}`);
-      setMailsGeneres(res.data);
+      const res = await api.get(`/relance-mailsgen`);
+      
       setError(null);
     } catch (err) {
       console.error('Erreur chargement mails générés:', err);
@@ -194,7 +193,7 @@ const MailsAEnvoyer = () => {
   const handleGenerateAIMails = async () => {
     try {
       setLoading(true);
-      const res = await api.post('/mailsgeneres/generate');
+      const res = await api.post('/mailsgeneres');
 
       await fetchMailsGeneres();
     } catch (error) {
@@ -209,7 +208,7 @@ const MailsAEnvoyer = () => {
 
     try {
       setLoading(true);
-      await api.patch(`/mailsgeneres/${selectedMail.id}`, {
+      await api.patch(`/mailsgeneres`, {
         sujet: editedSubject,
         contenu: editedContent
       });
@@ -231,6 +230,7 @@ const MailsAEnvoyer = () => {
   };
 
   const handleSavePrompt = async (data: any) => {
+   
     try {
       setLoading(true);
       await api.post('/prompt', data);

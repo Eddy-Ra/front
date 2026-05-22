@@ -58,7 +58,7 @@ const ResetPassword = () => {
 
         try {
             // 1. Trouver l'utilisateur par e-mail
-            const res = await api.get('/users');
+            const res = await api.get('/user');
             const users = res.data;
             const user = users.find((u: any) => u.email === email);
 
@@ -69,7 +69,7 @@ const ResetPassword = () => {
             }
 
             // 2. Mettre à jour le mot de passe
-            await api.patch(`/users/${user.id}`, { password: password });
+            await api.patch(`/user/${user.id}`, { password: password });
 
             setIsSuccess(true);
             toast({

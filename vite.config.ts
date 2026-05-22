@@ -17,12 +17,6 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
       },
-      '/n8n': {
-        target: 'https://wfw.omega-connect.tech',
-        changeOrigin: true,
-        secure: true,
-        rewrite: path => path.replace(/^\/n8n/, ''),
-      },
     },
   },
   plugins: [
