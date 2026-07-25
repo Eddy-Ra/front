@@ -527,7 +527,7 @@ const generateWithAI = async (item: Reponse): Promise<string> => {
 
     if (text?.trim()) return text.trim();
 
-    throw new Error("Le webhook n'a pas retourné de texte exploitable.");
+    throw new Error("Le webhook n'a pas retourné de texte exploitable." + res.data);
   } catch (error: any) {
     console.error("Erreur lors de l'appel au webhook:", error);
     toast({

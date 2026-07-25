@@ -95,7 +95,7 @@ const Dashboard = () => {
 
   // ── Pagination complète ───────────────────────────────────────────────────
   const fetchAllPages = async (endpoint: string): Promise<any[]> => {
-    const limit = 500000000;
+    const limit = 50000;
     let offset  = 0;
     let allData: any[] = [];
     while (true) {
