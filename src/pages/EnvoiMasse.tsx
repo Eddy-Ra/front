@@ -90,7 +90,7 @@ const formatDuration = (ms: number): string => {
 
 // ─── Helper : parse la réponse du webhook ─────────────────────────────────────
 const parseWebhookResponse = (data: unknown): { success: boolean; message: string; details?: string } => {
-  if (!data) return { success: false, message: "Aucune réponse du serveur" };
+  if (!data) return { success: true, message: "En attente le réponse du serveur" };
 
   const item = Array.isArray(data) ? (data as Record<string, unknown>[])[0] : data as Record<string, unknown>;
 
