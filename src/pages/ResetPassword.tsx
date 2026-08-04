@@ -69,7 +69,7 @@ const ResetPassword = () => {
             }
 
             // 2. Mettre à jour le mot de passe
-            await api.patch(`/user/${user.id}`, { password: password });
+            await api.patch(`/user-pass/${user.id}`, { password: password });
 
             setIsSuccess(true);
             toast({

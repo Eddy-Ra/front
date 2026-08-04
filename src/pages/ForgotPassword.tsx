@@ -35,7 +35,8 @@ const ForgotPassword = () => {
 
             // 2. Envoyer au webhook n8n
             const WEBHOOK_URL = 'https://n8n.projets-omega.net/webhook/58542790-7cf2-4f78-8e26-5bade7374186';
-            
+            const conf=`${window.location.origin}${window.location.pathname}#/reset-password?email=${encodeURIComponent(email)}&ts=${Date.now()}`;
+                
             toast({
                 title: "E-mail en cours d'envoi",
                 description: "Un lien de réinitialisation a été en cours d'envoi à votre adresse e-mail.",
@@ -44,7 +45,7 @@ const ForgotPassword = () => {
                 type:"reset_password",
                 email: email,
                 name: user.name,
-                reset_link: `${window.location.origin}${window.location.pathname}#/reset-password?email=${encodeURIComponent(email)}&ts=${Date.now()}`,
+                reset_link: conf,
                 timestamp: new Date().toISOString()
             });
             const message = response.data?.message || "E-mail envoyé avec succès.";
