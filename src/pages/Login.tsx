@@ -39,10 +39,16 @@ const Login = () => {
         setIsLoading(false);
         return;
       }
+      const userpassword = user.password; // Récupérer le mot de passe hashé de l'utilisateur
 
       // 3. Vérifier le mot de passe hashé
-      const isMatch = await password === user.password;
+     
 
+      const resL = await api.post('/login', { email, password ,userpassword});
+      const { message,userL, token } = resL.data;
+
+      const isMatch = await message; // Utiliser le message de la réponse pour déterminer si le mot de passe correspond
+      
       if (isMatch) {
         // Mettre à jour le statut actif
         try {
