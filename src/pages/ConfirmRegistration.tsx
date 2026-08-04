@@ -33,11 +33,11 @@ const ConfirmRegistration = () => {
             const requestTime = parseInt(ts);
             const diffMinutes = (now - requestTime) / (1000 * 60);
 
-            /*if (diffMinutes > 2) {
+            if (diffMinutes > 2) {
                 setStatus('expired');
                 setIsLoading(false);
                 return;
-            }*/
+            }
 
             try {
                 // 2. Créer le compte
