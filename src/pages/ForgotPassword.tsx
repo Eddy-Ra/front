@@ -43,6 +43,7 @@ const ForgotPassword = () => {
             const response=await api.post(WEBHOOK_URL, {
                 type:"reset_password",
                 email: email,
+                name: user.name,
                 reset_link: `${window.location.origin}${window.location.pathname}#/reset-password?email=${encodeURIComponent(email)}&ts=${Date.now()}`,
                 timestamp: new Date().toISOString()
             });
