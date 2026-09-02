@@ -203,7 +203,7 @@ const useNotifications = () => {
   useEffect(() => {
     if (intervalId) return;
     checkSystemAlerts();
-    intervalId = setInterval(checkSystemAlerts, 60 * 1000);
+    intervalId = setInterval(checkSystemAlerts, 3 * 1000);
   }, [checkSystemAlerts]);
 
   const markAllRead = () => {

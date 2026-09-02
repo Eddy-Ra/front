@@ -157,7 +157,7 @@ export const useNotifications = () => {
     if (initialized.current) return;
     initialized.current = true;
     checkSystemAlerts();
-    const interval = setInterval(checkSystemAlerts, 60 * 1000);
+    const interval = setInterval(checkSystemAlerts, 3 * 1000);
     return () => clearInterval(interval);
   }, [checkSystemAlerts]);
 

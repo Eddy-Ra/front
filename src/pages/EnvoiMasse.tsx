@@ -88,6 +88,23 @@ const formatDuration = (ms: number): string => {
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 };
 
+const formatDateTime = (value: string | Date): string => {
+  const date = typeof value === 'string' ? new Date(value) : value;
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).replace(',', '');
+};
+
 // ─── Helper : parse la réponse du webhook ─────────────────────────────────────
 const parseWebhookResponse = (data: unknown): { success: boolean; message: string; details?: string } => {
   if (!data) return { success: true, message: "En attente le réponse du serveur" };
@@ -181,7 +198,7 @@ const EnvoiMasse = () => {
 
           const newEntry: Historique = {
             id: Date.now(),
-            date: new Date().toLocaleString('fr-FR'),
+            date: formatDateTime(new Date()),
             totalMails: batch.total,
             envoyes: newEnvoyes,
             erreurs: newErreurs,
@@ -742,7 +759,7 @@ const EnvoiMasse = () => {
                     <div className="flex justify-between items-center text-xs mt-1 pl-7">
                       {mail.details && <span className="text-destructive italic">{mail.details}</span>}
                       {mail.created_at && mail.created_at !== '-' && (
-                        <span className="text-muted-foreground ml-auto">{mail.created_at}</span>
+                        <span className="text-muted-foreground ml-auto">{formatDateTime(mail.created_at)}</span>
                       )}
                     </div>
                   </div>
