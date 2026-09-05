@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Bell, X, Check, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Notification } from './useNotifications';
 
 interface Props {
   notifications: Notification[];

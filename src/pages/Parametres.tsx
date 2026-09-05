@@ -52,14 +52,36 @@ const Parametres = () => {
   });
 
   const [nouvelUtilisateur, setNouvelUtilisateur] = useState({
-    nom: '',
+    name: '',
     email: '',
+    password: '',
+    password_confirmation: '',
     role: 'Rédacteur'
   });
 
   const [showAddUser, setShowAddUser] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<any | null>(null);
+  const [editRole, setEditRole] = useState('Rédacteur');
 
   const handleAddUser = async () => {
+    if (nouvelUtilisateur.password && nouvelUtilisateur.password.length < 4) {
+      toast({
+        title: "Mot de passe invalide",
+        description: "Le mot de passe doit contenir au moins 4 caractères.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (nouvelUtilisateur.password !== nouvelUtilisateur.password_confirmation) {
+      toast({
+        title: "Confirmation incorrecte",
+        description: "Les mots de passe ne correspondent pas.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Vérification côté frontend
     if (nouvelUtilisateur.role === 'Admin' && !isAdmin) {
       toast({
@@ -78,7 +100,7 @@ const Parametres = () => {
       });
       toast({ title: "Succès", description: "Utilisateur créé avec succès" });
       setShowAddUser(false);
-      setNouvelUtilisateur({ nom: '', email: '', role: 'Rédacteur' });
+      setNouvelUtilisateur({ name: '', email: '', password: '', password_confirmation: '', role: 'Rédacteur' });
       fetchUsers();
     } catch (err) {
       toast({ title: "Erreur", description: "Erreur lors de la création", variant: "destructive" });
@@ -86,7 +108,21 @@ const Parametres = () => {
   };
 
   const handleEditUser = (user: any) => {
-    console.log('Modifier utilisateur:', user);
+    setUserToEdit(user);
+    setEditRole(user.role || 'Rédacteur');
+  };
+
+  const handleUpdateUserRole = async () => {
+    if (!userToEdit) return;
+
+    try {
+      const result =await api.patch(`/user/update-role/${userToEdit.id}`, { role: editRole });
+      toast({ title: "Succès", description: `Rôle de l'utilisateur modifié ` });
+      setUserToEdit(null);
+      fetchUsers();
+    } catch (err) {
+      toast({ title: "Erreur", description: "Impossible de modifier le rôle", variant: "destructive" });
+    }
   };
 
   const handleDeleteUser = async (user: any) => {
@@ -431,12 +467,13 @@ const Parametres = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="new-nom">Nom complet</Label>
+                  <Label htmlFor="new-name">Nom complet</Label>
                   <Input
-                    id="new-nom"
-                    value={nouvelUtilisateur.nom}
-                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, nom: e.target.value }))}
+                    id="new-name"
+                    value={nouvelUtilisateur.name}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, name: e.target.value }))}
                     className="mt-1"
+                    required
                   />
                 </div>
                 <div>
@@ -447,6 +484,29 @@ const Parametres = () => {
                     value={nouvelUtilisateur.email}
                     onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, email: e.target.value }))}
                     className="mt-1"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-password">Mot de passe</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={nouvelUtilisateur.password}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, password: e.target.value }))}
+                    className="mt-1"
+                    minLength={4}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-password-confirmation">Confirmation du mot de passe</Label>
+                  <Input
+                    id="new-password-confirmation"
+                    type="password"
+                    value={nouvelUtilisateur.password_confirmation}
+                    onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, password_confirmation: e.target.value }))}
+                    className="mt-1"
+                    minLength={4}
                   />
                 </div>
                 <div>
@@ -455,10 +515,10 @@ const Parametres = () => {
                     id="new-role"
                     value={nouvelUtilisateur.role}
                     onChange={(e) => setNouvelUtilisateur(prev => ({ ...prev, role: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 border border-border rounded-md"
+                    className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="Rédacteur">Rédacteur</option>
-                    {isAdmin && <option value="Admin">Admin</option>} {/* ← Visible seulement pour Admin */}
+                    <option value="Rédacteur" className="bg-background text-foreground">Rédacteur</option>
+                    {isAdmin && <option value="Admin" className="bg-background text-foreground">Admin</option>}
                   </select>
                   {!isAdmin && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -472,6 +532,42 @@ const Parametres = () => {
                   </Button>
                   <Button onClick={handleAddUser}>
                     Ajouter
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {userToEdit && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle>Modifier le rôle</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="font-medium">{userToEdit.name || userToEdit.nom}</p>
+                  <p className="text-sm text-muted-foreground">{userToEdit.email}</p>
+                </div>
+                <div>
+                  <Label htmlFor="edit-role">Rôle</Label>
+                  <select
+                    id="edit-role"
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="Rédacteur" className="bg-background text-foreground">Rédacteur</option>
+                    <option value="Admin" className="bg-background text-foreground">Admin</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setUserToEdit(null)}>
+                    Annuler
+                  </Button>
+                  <Button onClick={handleUpdateUserRole}>
+                    Enregistrer
                   </Button>
                 </div>
               </CardContent>

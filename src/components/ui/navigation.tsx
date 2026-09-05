@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -11,225 +11,13 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import img from '../../../public/assets/img/johndoe.jpg';
 import { api } from '@/api/api';
+import { useNotifications, type Notification } from '@/contexts/NotificationsContext';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-// ============================================================
-// TYPES
-// ============================================================
-interface Notification {
-  id: number;
-  type: 'success' | 'warning' | 'error' | 'info';
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-}
-
-// ============================================================
-// PERSISTANCE LOCALSTORAGE
-// ============================================================
-const loadCounts = () => {
-  try {
-    const saved = localStorage.getItem('notif_counts');
-    return saved ? JSON.parse(saved) : { attente: -1, reponses: -1, contacts: -1 };
-  } catch {
-    return { attente: -1, reponses: -1, contacts: -1 };
-  }
-};
-
-const saveCounts = (counts: { attente: number; reponses: number; contacts: number }) => {
-  localStorage.setItem('notif_counts', JSON.stringify(counts));
-};
-
-// ============================================================
-// VARIABLES GLOBALES
-// ============================================================
-let globalNotifications: Notification[] = [];
-let globalLastCounts = loadCounts();
-let isRunning = false;
-let intervalId: NodeJS.Timeout | null = null;
-let notifId = 1;
-
-// ============================================================
-// FETCH
-// ============================================================
-const extractArray = (data: any): any[] => {
-  if (Array.isArray(data))          return data;
-  if (Array.isArray(data?.data))    return data.data;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.items))   return data.items;
-  if (Array.isArray(data?.records)) return data.records;
-  return [];
-};
-
-const fetchAllPages = async (endpoint: string): Promise<any[]> => {
-  const limit = 1000;
-  let offset = 0;
-  let allData: any[] = [];
-  while (true) {
-    const res = await api.get(endpoint, { params: { limit, offset } });
-    const batch = extractArray(res.data);
-    allData = [...allData, ...batch];
-    if (batch.length < limit) break;
-    offset += limit;
-  }
-  return allData;
-};
-
-// ============================================================
-// HOOK NOTIFICATIONS
-// ============================================================
-const useNotifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(globalNotifications);
-
-  const checkSystemAlerts = useCallback(async () => {
-    if (isRunning) return;
-    isRunning = true;
-
-    try {
-      const [attenteRes, repRes, contactsRes] = await Promise.allSettled([
-        fetchAllPages('/realtimestatus'),
-        fetchAllPages('/b2b_mailsreponses'),
-        fetchAllPages('/b2b_datasynch'),
-      ]);
-
-      const attenteAll = attenteRes.status === 'fulfilled' ? attenteRes.value : [];
-      console.log('🔍 Statuts trouvés:', [...new Set(attenteAll.map((i: any) => i.statut))]);
-
-      const attenteCount  = attenteAll.filter((item: any) => item.statut === 'En cours').length;
-      const reponsesCount = repRes.status      === 'fulfilled' ? repRes.value.length      : 0;
-      const contactsCount = contactsRes.status === 'fulfilled' ? contactsRes.value.length : 0;
-
-      console.log('📊 Counts:', { attenteCount, reponsesCount, contactsCount });
-      console.log('📊 lastCounts:', { ...globalLastCounts });
-
-      const time = new Date().toLocaleString('fr-FR', {
-        day: '2-digit', month: '2-digit',
-        hour: '2-digit', minute: '2-digit'
-      });
-
-      const newNotifs: Notification[] = [];
-
-      if (globalLastCounts.attente === -1) {
-        if (attenteCount > 0) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'warning',
-            title: 'Mails en attente',
-            message: `${attenteCount} mail(s) en cours de traitement.`
-          });
-        }
-        if (reponsesCount > 0) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'success',
-            title: 'Réponses reçues',
-            message: `${reponsesCount} réponse(s) à consulter.`
-          });
-        }
-        if (contactsCount > 0) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'info',
-            title: 'Système opérationnel',
-            message: 'Toutes les sources de données sont synchronisées.'
-          });
-        } else {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'error',
-            title: 'Base de contacts vide',
-            message: 'Aucun contact trouvé dans la base de données.'
-          });
-        }
-      } else {
-        if (attenteCount > globalLastCounts.attente) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'warning',
-            title: 'Nouveaux mails en attente',
-            message: `+${attenteCount - globalLastCounts.attente} mail(s) en cours de traitement.`
-          });
-        }
-        if (reponsesCount > globalLastCounts.reponses) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'success',
-            title: 'Nouvelles réponses reçues',
-            message: `+${reponsesCount - globalLastCounts.reponses} nouvelle(s) réponse(s) reçue(s).`
-          });
-        }
-        if (contactsCount === 0 && globalLastCounts.contacts > 0) {
-          newNotifs.push({
-            id: notifId++, read: false, time,
-            type: 'error',
-            title: 'Base de contacts vide',
-            message: 'Tous les contacts ont été supprimés.'
-          });
-        }
-      }
-
-      globalLastCounts = { attente: attenteCount, reponses: reponsesCount, contacts: contactsCount };
-      saveCounts(globalLastCounts);
-
-      if (newNotifs.length > 0) {
-        globalNotifications = [...newNotifs, ...globalNotifications];
-        setNotifications([...globalNotifications]);
-      }
-
-      console.log('🔔 Nouvelles notifs:', newNotifs.length, newNotifs.map(n => n.title));
-
-    } catch (err) {
-      console.error('❌ Erreur checkSystemAlerts:', err);
-      const errNotif: Notification = {
-        id: notifId++, read: false,
-        type: 'error',
-        title: 'Erreur de connexion',
-        message: 'Impossible de contacter le serveur.',
-        time: new Date().toLocaleString('fr-FR')
-      };
-      globalNotifications = [errNotif, ...globalNotifications];
-      setNotifications([...globalNotifications]);
-    } finally {
-      isRunning = false;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (intervalId) return;
-    checkSystemAlerts();
-    intervalId = setInterval(checkSystemAlerts, 3 * 1000);
-  }, [checkSystemAlerts]);
-
-  const markAllRead = () => {
-    globalNotifications = globalNotifications.map(n => ({ ...n, read: true }));
-    setNotifications([...globalNotifications]);
-  };
-
-  const markRead = (id: number) => {
-    globalNotifications = globalNotifications.map(n => n.id === id ? { ...n, read: true } : n);
-    setNotifications([...globalNotifications]);
-  };
-
-  const deleteNotif = (id: number) => {
-    globalNotifications = globalNotifications.filter(n => n.id !== id);
-    setNotifications([...globalNotifications]);
-  };
-
-  const deleteAll = () => {
-    globalNotifications = [];
-    globalLastCounts = { attente: -1, reponses: -1, contacts: -1 };
-    localStorage.removeItem('notif_counts');
-    setNotifications([]);
-  };
-
-  return { notifications, markAllRead, markRead, deleteNotif, deleteAll, checkSystemAlerts };
-};
 
 // ============================================================
 // ICONES ET COULEURS
@@ -451,6 +239,7 @@ interface SidebarProps { className?: string; }
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
   const navigate  = useNavigate();
+  const { deleteAll } = useNotifications();
 
   const userStr   = localStorage.getItem('user');
   const user      = userStr ? JSON.parse(userStr) : null;
@@ -466,13 +255,7 @@ export function Sidebar({ className }: SidebarProps) {
       }
     }
     localStorage.removeItem('user');
-    localStorage.removeItem('notif_counts');
-    globalNotifications = [];
-    globalLastCounts = { attente: -1, reponses: -1, contacts: -1 };
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
+    deleteAll();
     navigate('/login');
   };
 
