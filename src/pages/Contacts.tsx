@@ -332,16 +332,34 @@ const Contacts = () => {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Nom", "Email", "Société", "Source", "Catégorie"];
+    const headers = [
+      "id",
+      "full_name",
+      "email",
+      "company",
+      "source",
+      "created_at",
+      "generateMessage",
+      "category_id",
+      "updated_at",
+      "sent",
+      "generatemessage",
+    ];
     const rows = filteredContactManual.map(contact => [
+      contact.id,
       contact.full_name,
       contact.email,
       contact.company,
       contact.source,
-      categories.find(category => category.id === contact.category_id)?.name || "",
+      contact.created_at,
+      contact.generateMessage ?? contact.generatemessage,
+      contact.category_id,
+      contact.updated_at,
+      contact.sent,
+      contact.generatemessage ?? contact.generateMessage,
     ]);
     const csv = [headers, ...rows]
-      .map(row => row.map(escapeCsvValue).join(";"))
+      .map(row => row.map(escapeCsvValue).join(","))
       .join("\r\n");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -354,7 +372,7 @@ const Contacts = () => {
     URL.revokeObjectURL(url);
   };
 
-  const parseCsv = (text: string) => {
+  const parseCsv = (text: string, delimiter: "," | ";") => {
     const rows: string[][] = [];
     let row: string[] = [];
     let value = "";
@@ -370,7 +388,7 @@ const Contacts = () => {
         } else {
           quoted = !quoted;
         }
-      } else if (character === ";" && !quoted) {
+      } else if (character === delimiter && !quoted) {
         row.push(value.trim());
         value = "";
       } else if (character === "\n" && !quoted) {
@@ -395,7 +413,17 @@ const Contacts = () => {
     setIsImporting(true);
     try {
       const text = await file.text();
-      const rows = parseCsv(text);
+      const commaRows = parseCsv(text, ",");
+      const semicolonRows = parseCsv(text, ";");
+      const hasContactHeaders = (parsedRows: string[][]) => {
+        const headerSet = new Set(
+          (parsedRows[0] || []).map(header =>
+            header.replace(/^\uFEFF/, "").toLowerCase().trim()
+          )
+        );
+        return headerSet.has("full_name") || headerSet.has("email") || headerSet.has("nom");
+      };
+      const rows = hasContactHeaders(commaRows) ? commaRows : semicolonRows;
       if (rows.length < 2) throw new Error("Le fichier CSV est vide ou ne contient pas d'en-tête.");
 
       const headers = rows[0].map(header =>
@@ -407,6 +435,7 @@ const Contacts = () => {
       const emailIndex = findColumn("email", "mail", "e-mail");
       const companyIndex = findColumn("société", "societe", "company", "entreprise");
       const sourceIndex = findColumn("source");
+      const categoryIdIndex = findColumn("category_id");
       const categoryIndex = findColumn("catégorie", "categorie", "category");
 
       if (nameIndex < 0 && emailIndex < 0) {
@@ -422,9 +451,11 @@ const Contacts = () => {
           email: emailIndex >= 0 ? row[emailIndex] || "" : "",
           company: companyIndex >= 0 ? row[companyIndex] || "" : "",
           source: sourceIndex >= 0 ? row[sourceIndex] || "Manuel" : "Manuel",
-          category_id: categoryIndex >= 0
-            ? categoryByName.get((row[categoryIndex] || "").toLowerCase().trim()) || null
-            : null,
+          category_id: categoryIdIndex >= 0 && row[categoryIdIndex]
+            ? row[categoryIdIndex].trim()
+            : categoryIndex >= 0
+              ? categoryByName.get((row[categoryIndex] || "").toLowerCase().trim()) || null
+              : null,
         }))
         .filter(contact => contact.full_name || contact.email);
 
