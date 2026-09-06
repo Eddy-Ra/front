@@ -68,7 +68,7 @@ const Login = () => {
 
     } catch (err) {
       console.error("Erreur de connexion", err);
-      setError("Erreur lors de la connexion au serveur");
+      setError("Mot de passe incorrect");
     } finally {
       setIsLoading(false);
     }
