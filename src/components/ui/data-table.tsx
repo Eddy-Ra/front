@@ -37,6 +37,7 @@ interface DataTableProps {
   onAdd: () => void; 
   onEdit: (item: any) => void;
   onDelete: (item: any) => void;
+  onFilterChange?: (filterKey: string, value: string | null) => void;
   filters?: { key: string; label: string; options: string[] }[];
   searchPlaceholder?: string;
   className?: string;
@@ -52,6 +53,7 @@ export function DataTable({
   onAdd, 
   onEdit: onEditProp,
   onDelete,
+  onFilterChange,
   filters = [],
   searchPlaceholder = "Rechercher...",
   className,
@@ -142,7 +144,7 @@ export function DataTable({
   return (
     <>
       {/* Styles (inchangés) */}
-      <style jsx global>{`
+      <style>{`
         /* ... styles inchangés ... */
         .hide-scrollbar-y::-webkit-scrollbar {
           display: none;
@@ -221,9 +223,15 @@ export function DataTable({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleFilterChange(filter.key, '')}>Tous</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    handleFilterChange(filter.key, '');
+                    onFilterChange?.(filter.key, null);
+                  }}>Tous</DropdownMenuItem>
                   {filter.options.map((option) => (
-                    <DropdownMenuItem key={option} onClick={() => handleFilterChange(filter.key, option)}>
+                    <DropdownMenuItem key={option} onClick={() => {
+                      handleFilterChange(filter.key, option);
+                      onFilterChange?.(filter.key, option);
+                    }}>
                       {option}
                     </DropdownMenuItem>
                   ))}

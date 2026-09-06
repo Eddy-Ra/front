@@ -35,7 +35,7 @@ const extractArray = (data: any): any[] => {
 };
 
 const fetchAllPages = async (endpoint: string): Promise<any[]> => {
-  const limit = 1000;
+  const limit = 50000;
   let offset = 0;
   let allData: any[] = [];
   while (true) {
@@ -197,15 +197,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     void checkSystemAlerts();
     const interval = setInterval(() => {
       void checkSystemAlerts();
-    }, 3 * 1000);
-    return () => clearInterval(interval);
-  }, [checkSystemAlerts]);
-
-  useEffect(() => {
-    void checkSystemAlerts();
-    const interval = setInterval(() => {
-      void checkSystemAlerts();
-    }, 3 * 1000);
+    }, 30 * 1000);
     return () => clearInterval(interval);
   }, [checkSystemAlerts]);
 

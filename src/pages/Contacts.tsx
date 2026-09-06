@@ -97,11 +97,32 @@ const Contacts = () => {
     }
   };
 
+  const refreshContactsAndCategories = async () => {
+    const [contactsResponse, categoriesResponse] = await Promise.all([
+      api.get("/b2b_datasynch"),
+      api.get("/categories"),
+    ]);
+    const normalizedContacts = contactsResponse.data.map(normalizeContact);
+    const refreshedCategories = categoriesResponse.data.map((category: any, index: number) => ({
+      ...category,
+      id: category.id || `temp-${index}`,
+      contact_count: getContactCount(category.id, normalizedContacts),
+    }));
+    setContactManual(normalizedContacts);
+    setContacts(normalizedContacts);
+    setCategories(refreshedCategories);
+    return normalizedContacts;
+  };
+
   useEffect(() => {
     const loadData = async () => {
-      const allContacts = await fetchAllContacts();
-      await fetchCategories(allContacts);
-      setLoading(false);
+      try {
+        await refreshContactsAndCategories();
+      } catch (err) {
+        console.error("Erreur chargement contacts et catégories:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
   }, []);
@@ -478,8 +499,7 @@ const Contacts = () => {
       });
 
       await Promise.all(uniqueContacts.map(contact => api.post("/b2b_datasynch", contact)));
-      const allContacts = await fetchAllContacts();
-      await fetchCategories(allContacts);
+      await refreshContactsAndCategories();
       const skippedCount = contactsToImport.length - uniqueContacts.length;
       window.alert(
         `${uniqueContacts.length} contact(s) importé(s).` +
@@ -579,7 +599,7 @@ const Contacts = () => {
 
   return (
     <Layout title="Gestion des contacts">
-      <style jsx global>{`
+      <style>{`
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
@@ -638,8 +658,7 @@ const Contacts = () => {
                       timestamp: new Date().toISOString(),
                     }
                   );
-                  const allContacts = await fetchAllContacts();
-                  await fetchCategories(allContacts);
+                  await refreshContactsAndCategories();
                 } catch (error) {
                   console.error("Erreur synchronisation:", error);
                 } finally {

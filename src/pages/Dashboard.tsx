@@ -111,19 +111,18 @@ const Dashboard = () => {
 
   // ── Chargement mutualisé ──────────────────────────────────────────────────
   const loadAllData = async () => {
-    const [cR, mR, catR, repR, attR] = await Promise.allSettled([
+    const [cR, mR, catR, repR] = await Promise.allSettled([
       fetchAllPages('/b2b_datasynch'),
       fetchAllPages('/realtimestatus'),
       fetchAllPages('/categories'),
       fetchAllPages('/b2b_mailsreponses'),
-      fetchAllPages('/realtimestatus'),
     ]);
     if (cR.status   === 'fulfilled') setContacts(cR.value);
     if (mR.status   === 'fulfilled') setMails(mR.value);
     if (catR.status === 'fulfilled') setCategories(catR.value);
     if (repR.status === 'fulfilled') setReponses(repR.value);
-    if (attR.status === 'fulfilled') {
-      setReponseEnAttente(attR.value.filter((i: any) => i.statut === 'En cours'));
+    if (mR.status === 'fulfilled') {
+      setReponseEnAttente(mR.value.filter((i: any) => i.statut === 'En cours'));
     }
   };
 
