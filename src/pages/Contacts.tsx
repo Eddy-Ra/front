@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Download, Upload, RefreshCw, Edit, Trash2, Loader2 } from "lucide-react";
 import { Layout } from "@/components/ui/navigation";
 import { DataTable } from "@/components/ui/data-table";
@@ -37,6 +37,8 @@ const Contacts = () => {
 
   const [loading, setLoading] = useState(false);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Catégorie
   const [categoryToDelete, setCategoryToDelete] = useState<{
@@ -324,6 +326,142 @@ const Contacts = () => {
     }
   };
 
+  const escapeCsvValue = (value: unknown) => {
+    const text = value == null ? "" : String(value);
+    return /[\r\n,;"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Nom", "Email", "Société", "Source", "Catégorie"];
+    const rows = filteredContactManual.map(contact => [
+      contact.full_name,
+      contact.email,
+      contact.company,
+      contact.source,
+      categories.find(category => category.id === contact.category_id)?.name || "",
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(escapeCsvValue).join(";"))
+      .join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseCsv = (text: string) => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let value = "";
+    let quoted = false;
+
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index];
+      const nextCharacter = text[index + 1];
+      if (character === '"') {
+        if (quoted && nextCharacter === '"') {
+          value += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === ";" && !quoted) {
+        row.push(value.trim());
+        value = "";
+      } else if (character === "\n" && !quoted) {
+        row.push(value.trim());
+        if (row.some(cell => cell !== "")) rows.push(row);
+        row = [];
+        value = "";
+      } else if (character !== "\r" || quoted) {
+        value += character;
+      }
+    }
+    row.push(value.trim());
+    if (row.some(cell => cell !== "")) rows.push(row);
+    return rows;
+  };
+
+  const handleImportCsv = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) throw new Error("Le fichier CSV est vide ou ne contient pas d'en-tête.");
+
+      const headers = rows[0].map(header =>
+        header.replace(/^\uFEFF/, "").toLowerCase().trim()
+      );
+      const findColumn = (...names: string[]) =>
+        headers.findIndex(header => names.includes(header));
+      const nameIndex = findColumn("nom", "name", "full_name", "nom complet");
+      const emailIndex = findColumn("email", "mail", "e-mail");
+      const companyIndex = findColumn("société", "societe", "company", "entreprise");
+      const sourceIndex = findColumn("source");
+      const categoryIndex = findColumn("catégorie", "categorie", "category");
+
+      if (nameIndex < 0 && emailIndex < 0) {
+        throw new Error("Les colonnes Nom et Email sont introuvables.");
+      }
+
+      const categoryByName = new Map(
+        categories.map(category => [category.name.toLowerCase().trim(), category.id])
+      );
+      const contactsToImport = rows.slice(1)
+        .map(row => ({
+          full_name: nameIndex >= 0 ? row[nameIndex] || "" : "",
+          email: emailIndex >= 0 ? row[emailIndex] || "" : "",
+          company: companyIndex >= 0 ? row[companyIndex] || "" : "",
+          source: sourceIndex >= 0 ? row[sourceIndex] || "Manuel" : "Manuel",
+          category_id: categoryIndex >= 0
+            ? categoryByName.get((row[categoryIndex] || "").toLowerCase().trim()) || null
+            : null,
+        }))
+        .filter(contact => contact.full_name || contact.email);
+
+      if (contactsToImport.length === 0) {
+        throw new Error("Aucun contact valide à importer.");
+      }
+
+      const getContactKey = (contact: any) => {
+        const email = contact.email?.trim().toLowerCase();
+        if (email) return `email:${email}`;
+        return `contact:${contact.full_name.trim().toLowerCase()}|${contact.company.trim().toLowerCase()}`;
+      };
+      const existingKeys = new Set(contactManual.map(getContactKey));
+      const importedKeys = new Set<string>();
+      const uniqueContacts = contactsToImport.filter(contact => {
+        const key = getContactKey(contact);
+        if (existingKeys.has(key) || importedKeys.has(key)) return false;
+        importedKeys.add(key);
+        return true;
+      });
+
+      await Promise.all(uniqueContacts.map(contact => api.post("/b2b_datasynch", contact)));
+      const allContacts = await fetchAllContacts();
+      await fetchCategories(allContacts);
+      const skippedCount = contactsToImport.length - uniqueContacts.length;
+      window.alert(
+        `${uniqueContacts.length} contact(s) importé(s).` +
+        (skippedCount > 0 ? ` ${skippedCount} doublon(s) ignoré(s).` : "")
+      );
+    } catch (error) {
+      console.error("Erreur import CSV:", error);
+      window.alert(error instanceof Error ? error.message : "Impossible d'importer le fichier CSV.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // ─── Rendu liste catégories ──────────────────────────────────────────────────
 
   const renderCategoryContent = () => {
@@ -427,11 +565,30 @@ const Contacts = () => {
             <Plus className="h-4 w-4" /> Ajouter un contact
           </Button>
 
-          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
-            <Upload className="h-4 w-4" /> Importer CSV
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportCsv}
+          />
+
+          <Button
+            variant="outline"
+            className="gap-2 border-[#8675E1] border-2 text-[#8675E1]"
+            onClick={() => importInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Importer CSV
           </Button>
 
-          <Button variant="outline" className="gap-2 border-[#8675E1] border-2 text-[#8675E1]">
+          <Button
+            variant="outline"
+            className="gap-2 border-[#8675E1] border-2 text-[#8675E1]"
+            onClick={handleExportCsv}
+            disabled={filteredContactManual.length === 0}
+          >
             <Download className="h-4 w-4" /> Exporter
           </Button>
 
