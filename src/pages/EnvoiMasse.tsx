@@ -926,10 +926,7 @@ const EnvoiMasse = () => {
     <Layout title="Envoi en masse">
       <div className="space-y-6">
         <Tabs defaultValue="envoiMasse" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="envoiMasse">Envoi en masse</TabsTrigger>
-            <TabsTrigger value="envoiRelance">Envoi en masse — relance</TabsTrigger>
-          </TabsList>
+          
 
           <div className="h-4" />
 
@@ -938,16 +935,6 @@ const EnvoiMasse = () => {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               {renderCategoryList()}
               {renderContactListPanel({ withSearch: true })}
-            </div>
-            <div className="h-4" />
-            {renderStatusAndHistory()}
-          </TabsContent>
-
-          {/* ===== TAB 2 ===== */}
-          <TabsContent value="envoiRelance" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              {renderCategoryList()}
-              {renderContactListPanel({ withSearch: false })}
             </div>
             <div className="h-4" />
             {renderStatusAndHistory()}

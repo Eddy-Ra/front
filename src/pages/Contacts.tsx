@@ -677,6 +677,54 @@ const Contacts = () => {
             } Synchroniser
           </Button>
         </div>
+        {/* ── Statistiques par source ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Statistiques par Source</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(loading || isCategoriesLoading) ? (
+              <div className="flex items-center justify-center min-h-[100px]">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (() => {
+              const phantombusterCount = contactManual.filter(
+                c => c.source?.toLowerCase() === "phantombuster"
+              ).length;
+              const manuelCount = contactManual.filter(c =>
+                ["ajout manuel", "manuel"].includes(c.source?.toLowerCase() ?? "")
+              ).length;
+              const societeCount = contactManual.filter(
+                c => c.source?.toLowerCase() === "societe"
+              ).length;
+              const googleCount = contactManual.filter(
+                c => c.source?.toLowerCase() === "google map"
+              ).length;
+              const total = phantombusterCount + manuelCount + societeCount + googleCount;
+
+              const stats = [
+                { label: "Phantombuster", value: phantombusterCount },
+                { label: "Ajout Manuel",  value: manuelCount },
+                { label: "Société",       value: societeCount },
+                { label: "Google Map",    value: googleCount },
+                { label: "Total",         value: total },
+              ];
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {stats.map(s => (
+                    <div key={s.label} className="text-center p-4 border border-border rounded-lg">
+                      <h3 className="font-semibold text-lg">{s.label}</h3>
+                      <p className="text-2xl font-bold text-primary mt-2">{s.value}</p>
+                      <p className="text-sm text-muted-foreground">contacts</p>
+                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
@@ -748,54 +796,7 @@ const Contacts = () => {
           </div>
         </div>
 
-        {/* ── Statistiques par source ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Statistiques par Source</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(loading || isCategoriesLoading) ? (
-              <div className="flex items-center justify-center min-h-[100px]">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : (() => {
-              const phantombusterCount = contactManual.filter(
-                c => c.source?.toLowerCase() === "phantombuster"
-              ).length;
-              const manuelCount = contactManual.filter(c =>
-                ["ajout manuel", "manuel"].includes(c.source?.toLowerCase() ?? "")
-              ).length;
-              const societeCount = contactManual.filter(
-                c => c.source?.toLowerCase() === "societe"
-              ).length;
-              const googleCount = contactManual.filter(
-                c => c.source?.toLowerCase() === "google map"
-              ).length;
-              const total = phantombusterCount + manuelCount + societeCount + googleCount;
-
-              const stats = [
-                { label: "Phantombuster", value: phantombusterCount },
-                { label: "Ajout Manuel",  value: manuelCount },
-                { label: "Société",       value: societeCount },
-                { label: "Google Map",    value: googleCount },
-                { label: "Total",         value: total },
-              ];
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {stats.map(s => (
-                    <div key={s.label} className="text-center p-4 border border-border rounded-lg">
-                      <h3 className="font-semibold text-lg">{s.label}</h3>
-                      <p className="text-2xl font-bold text-primary mt-2">{s.value}</p>
-                      <p className="text-sm text-muted-foreground">contacts</p>
-                      <Badge className="mt-2 bg-success text-success-foreground">Actif</Badge>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
+        
 
         {/* ── Popups ── */}
         <CategoryPopup
