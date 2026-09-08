@@ -46,7 +46,7 @@ const buildActivityFromData = (
   });
   reponseEnAttente.forEach(i => {
     if (i.created_at) events.push({
-      action: `Mail en attente — ${i.email ?? i.nom ?? i.contact ?? 'contact inconnu'}`,
+      action: `Mail en attente de reponse  — ${i.email ?? i.nom ?? i.contact ?? 'contact inconnu'}`,
       time: new Date(i.created_at), type: 'info',
     });
   });
@@ -194,11 +194,53 @@ const Dashboard = () => {
     };
 
     return [
-      { title: 'Total Contacts',   value: contacts.length.toLocaleString(),        description: 'Contacts dans la base',            icon: Users,       trend: trend(byMonth(contacts, cm, cy),         byMonth(contacts, pm, py))         },
-      { title: 'Mails Envoyés',    value: mails.length.toLocaleString(),            description: 'Ce mois-ci',                       icon: Send,        trend: trend(byMonth(mails, cm, cy),            byMonth(mails, pm, py))            },
-      { title: 'Réponses Reçues',  value: reponses.length.toLocaleString(),         description: `Taux de réponse: ${tauxReponse}%`, icon: Reply,       trend: trend(byMonth(reponses, cm, cy),         byMonth(reponses, pm, py))         },
-      { title: 'Mails en Attente', value: reponseEnAttente.length.toLocaleString(), description: 'À valider',                        icon: AlertCircle, trend: trend(byMonth(reponseEnAttente, cm, cy), byMonth(reponseEnAttente, pm, py)) },
-    ];
+  {
+    title: 'Total Contacts',
+    value: contacts.length.toLocaleString(),
+    description: 'Contacts dans la base',
+    icon: Users,
+    trend: trend(
+      byMonth(contacts, cm, cy),
+      byMonth(contacts, pm, py)
+    )
+  },
+
+  {
+    title: 'Mails Envoyés',
+    value: mails.length.toLocaleString(),
+    description: 'Ce mois-ci',
+    icon: Send,
+    trend: trend(
+      byMonth(mails, cm, cy),
+      byMonth(mails, pm, py)
+    )
+  },
+
+  {
+    title: 'Réponses Reçues',
+    value: reponses.length.toLocaleString(),
+    description: `Taux de réponse: ${tauxReponse}%`,
+    icon: Reply,
+    trend: trend(
+      byMonth(reponses, cm, cy),
+      byMonth(reponses, pm, py)
+    )
+  },
+
+  {
+    title: 'Mails en Attente de réponse',
+    value: Math.max(
+      0,
+      mails.length - reponses.length
+    ).toLocaleString(),
+    description: 'Sans réponse reçue',
+    icon: AlertCircle,
+    trend: trend(
+      byMonth(reponseEnAttente, cm, cy),
+      byMonth(reponseEnAttente, pm, py)
+    )
+  },
+];
   }, [contacts, mails, reponses, reponseEnAttente, tauxReponse]);
 
   const contactsByCategory = useMemo(() => {
